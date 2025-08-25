@@ -2,11 +2,9 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Run and deploy the app
 
 This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/drive/13VOLopZ0_WE0F_zjR0dQJrVwBQBAhJkr
 
 ## Run Locally
 
@@ -15,6 +13,33 @@ View your app in AI Studio: https://ai.studio/apps/drive/13VOLopZ0_WE0F_zjR0dQJr
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Run the app frontend:
    `npm run dev`
+3. Start the API server (requires MongoDB):
+   `npm run server`
+
+The server uses the `MONGODB_URI` environment variable and defaults to `mongodb://localhost:27017/mytrip`.
+
+## Personal data management
+
+Administrators can configure which personal data fields are collected and whether they are editable. Use the following API endpoints:
+
+- `GET /api/field-config` – list available fields
+- `PUT /api/field-config/:field` – create or update a field (expects `label`, `type`, `enabled`, `locked`)
+- `PUT /api/users/:id/personal-data` – update a user's field value (respects field configuration and per-user lock)
+- `PUT /api/users/:id/personal-data/:field/lock` – lock or unlock a field for a specific user
+- `POST /api/users/:id/passport-photo` – upload a passport photo (`photo` form field). Uploaded files are served from `/uploads`.
+
+Add `uploads/` to `.gitignore` so passport photos aren't committed to source control.
+
+## Invitations
+
+Super admins or organizers can send signup links via Brevo. Each invitation includes the desired user role and optional trip to join. Links expire after 7 days so registration is only possible through email invitations.
+
+Endpoints:
+
+- `POST /api/invitations` – body: `{ email, role, tripId }`. Generates a token, emails the signup link, and stores expiration.
+- `GET /api/invitations/:token` – verify that an invitation token is still valid.
+- `POST /api/register/:token` – body: `{ name }`. Creates the user, assigns them to the invitation's trip, and marks the token as used.
+
+Set the `BREVO_API_KEY` environment variable to enable email delivery. Optionally configure `APP_URL` so links point to your frontend host.

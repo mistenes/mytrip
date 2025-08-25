@@ -45,6 +45,8 @@ interface PersonalDataFieldConfig {
     tripId: number;
     label: string;
     type: 'text' | 'date' | 'file';
+    enabled?: boolean;
+    locked?: boolean;
 }
 
 interface PersonalDataRecord {
@@ -117,11 +119,11 @@ const INITIAL_DOCUMENTS: Document[] = [
   { id: 4, tripId: 103, name: 'Colosseum Jegyek', category: 'Programok', uploadDate: '2024-10-20', fileUrl: '#', visibleTo: 'all' },
 ];
 
-const PERSONAL_DATA_FIELD_CONFIGS: PersonalDataFieldConfig[] = [
+const DEFAULT_PERSONAL_DATA_FIELD_CONFIGS: PersonalDataFieldConfig[] = [
     { id: 'fullName', tripId: 101, label: 'Teljes név (útlevél szerint)', type: 'text' },
     { id: 'dob', tripId: 101, label: 'Születési dátum', type: 'date' },
     { id: 'passportNumber', tripId: 101, label: 'Útlevél száma', type: 'text' },
-    { id: 'passportScan', tripId: 101, label: 'Útlevél másolat', type: 'file' },
+    { id: 'passportPhoto', tripId: 101, label: 'Útlevél fotó', type: 'file' },
     { id: 'visa', tripId: 102, label: 'Vízum másolat', type: 'file' },
     { id: 'idCard', tripId: 103, label: 'Személyi igazolvány másolat', type: 'file' },
 ];
@@ -129,7 +131,7 @@ const PERSONAL_DATA_FIELD_CONFIGS: PersonalDataFieldConfig[] = [
 const INITIAL_PERSONAL_DATA_RECORDS: PersonalDataRecord[] = [
     { userId: 3, tripId: 101, fieldId: 'fullName', value: 'Boldog Utazó', isLocked: true },
     { userId: 3, tripId: 101, fieldId: 'dob', value: '1990-05-15', isLocked: false },
-    { userId: 3, tripId: 101, fieldId: 'passportScan', value: 'passport_utazo.pdf', isLocked: false },
+    { userId: 3, tripId: 101, fieldId: 'passportPhoto', value: 'passport_utazo.pdf', isLocked: false },
 ];
 
 const INITIAL_ITINERARY_ITEMS: ItineraryItem[] = [
@@ -1042,8 +1044,16 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
             setFormData(prev => ({ ...prev, [fieldId]: value }));
         };
 
-        const handleFileChange = (fieldId: string, file: File | null) => {
+        const handleFileChange = async (fieldId: string, file: File | null) => {
             if (file) {
+                 if (fieldId === 'passportPhoto') {
+                    const formData = new FormData();
+                    formData.append('photo', file);
+                    await fetch(`http://localhost:3001/api/users/${user.id}/passport-photo`, {
+                        method: 'POST',
+                        body: formData
+                    }).catch(() => {});
+                 }
                  onUpdateRecord({ userId: user.id, tripId: trip.id, fieldId, value: file.name });
             }
         };
@@ -1382,9 +1392,18 @@ const Dashboard = ({
 const App = () => {
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
   const [trips, setTrips] = useState<Trip[]>(INITIAL_TRIPS);
+
+  // Load trips from backend MongoDB if available
+  useEffect(() => {
+    fetch('/api/trips')
+      .then(res => res.json())
+      .then(data => setTrips(data))
+      .catch(err => console.error('Failed to fetch trips', err));
+  }, []);
   const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>(INITIAL_FINANCIAL_RECORDS);
   const [documents, setDocuments] = useState<Document[]>(INITIAL_DOCUMENTS);
   const [personalDataRecords, setPersonalDataRecords] = useState<PersonalDataRecord[]>(INITIAL_PERSONAL_DATA_RECORDS);
+  const [personalDataConfigs, setPersonalDataConfigs] = useState<PersonalDataFieldConfig[]>(DEFAULT_PERSONAL_DATA_FIELD_CONFIGS);
   const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>(INITIAL_ITINERARY_ITEMS);
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'auto');
 
@@ -1411,6 +1430,20 @@ const App = () => {
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
+
+  useEffect(() => {
+    fetch('http://localhost:3001/api/field-config')
+      .then(res => res.json())
+      .then(data => setPersonalDataConfigs(data.map((c: any) => ({
+        id: c.field,
+        tripId: c.tripId,
+        label: c.label,
+        type: c.type,
+        enabled: c.enabled,
+        locked: c.locked
+      }))))
+      .catch(() => {});
+  }, []);
   
   const handleLogin = (role: Role) => {
     setCurrentUserRole(role);
@@ -1447,6 +1480,11 @@ const App = () => {
               return [...prev, { ...updatedRecord, isLocked: false }];
           }
       });
+      fetch(`http://localhost:3001/api/users/${updatedRecord.userId}/personal-data`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: updatedRecord.fieldId, value: updatedRecord.value })
+      }).catch(() => {});
   };
 
   const handleTogglePersonalDataLock = (userId: number, fieldId: string, tripId: number) => {
@@ -1458,6 +1496,12 @@ const App = () => {
               return record;
           })
       );
+      const record = personalDataRecords.find(r => r.userId === userId && r.fieldId === fieldId && r.tripId === tripId);
+      fetch(`http://localhost:3001/api/users/${userId}/personal-data/${fieldId}/lock`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locked: !(record?.isLocked) })
+      }).catch(() => {});
   };
 
   const handleAddItineraryItem = (newItemData: Omit<ItineraryItem, 'id'>) => {
@@ -1488,7 +1532,7 @@ const App = () => {
       onAddFinancialRecord={handleAddFinancialRecord}
       documents={documents}
       onAddDocument={handleAddDocument}
-      personalDataConfigs={PERSONAL_DATA_FIELD_CONFIGS}
+      personalDataConfigs={personalDataConfigs.filter(c => c.enabled !== false)}
       personalDataRecords={personalDataRecords}
       onUpdatePersonalData={handleUpdatePersonalData}
       onTogglePersonalDataLock={handleTogglePersonalDataLock}
