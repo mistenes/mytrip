@@ -2,7 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import crypto from 'crypto';
-import Brevo from '@getbrevo/brevo';
+// Using Brevo's REST API directly so no external SDK is required
 
 const app = express();
 app.use(express.json());
@@ -60,9 +60,24 @@ const invitationSchema = new mongoose.Schema({
 }, { timestamps: true });
 const Invitation = mongoose.model('Invitation', invitationSchema);
 
-const brevo = new Brevo.TransactionalEmailsApi();
-if (process.env.BREVO_API_KEY) {
-  brevo.setApiKey(brevo.authentications['apiKey'], process.env.BREVO_API_KEY);
+async function sendInvitationEmail(email, signupUrl) {
+  if (!process.env.BREVO_API_KEY) return;
+  try {
+    await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': process.env.BREVO_API_KEY
+      },
+      body: JSON.stringify({
+        to: [{ email }],
+        subject: 'Invitation to MyTrip',
+        htmlContent: `<p>You have been invited to join a trip. Sign up here: <a href="${signupUrl}">${signupUrl}</a></p>`
+      })
+    });
+  } catch (err) {
+    console.error('Email send failed', err);
+  }
 }
 
 const upload = multer({ dest: 'uploads/' });
@@ -74,15 +89,7 @@ app.post('/api/invitations', async (req, res) => {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   await Invitation.create({ email, role, tripId, token, expiresAt });
   const signupUrl = `${process.env.APP_URL || 'http://localhost:5173'}/signup?token=${token}`;
-  try {
-    await brevo.sendTransacEmail({
-      to: [{ email }],
-      subject: 'Invitation to MyTrip',
-      htmlContent: `<p>You have been invited to join a trip. Sign up here: <a href="${signupUrl}">${signupUrl}</a></p>`
-    });
-  } catch (err) {
-    console.error('Email send failed', err);
-  }
+  await sendInvitationEmail(email, signupUrl);
   res.status(201).json({ message: 'Invitation sent' });
 });
 
