@@ -1382,6 +1382,14 @@ const Dashboard = ({
 const App = () => {
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
   const [trips, setTrips] = useState<Trip[]>(INITIAL_TRIPS);
+
+  // Load trips from backend MongoDB if available
+  useEffect(() => {
+    fetch('/api/trips')
+      .then(res => res.json())
+      .then(data => setTrips(data))
+      .catch(err => console.error('Failed to fetch trips', err));
+  }, []);
   const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>(INITIAL_FINANCIAL_RECORDS);
   const [documents, setDocuments] = useState<Document[]>(INITIAL_DOCUMENTS);
   const [personalDataRecords, setPersonalDataRecords] = useState<PersonalDataRecord[]>(INITIAL_PERSONAL_DATA_RECORDS);
