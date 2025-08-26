@@ -1,0 +1,176 @@
+import React, { useState, useEffect, useMemo } from "react";
+import LoginPage from "./components/LoginPage";
+import SignupPage from "./components/SignupPage";
+import Dashboard from "./components/Dashboard";
+import { USERS, INITIAL_TRIPS, INITIAL_FINANCIAL_RECORDS, INITIAL_DOCUMENTS, DEFAULT_PERSONAL_DATA_FIELD_CONFIGS, INITIAL_PERSONAL_DATA_RECORDS, INITIAL_ITINERARY_ITEMS } from "./mockData";
+import { Role, Trip, FinancialRecord, Document, PersonalDataRecord, PersonalDataFieldConfig, ItineraryItem, Theme } from "./types";
+import { API_BASE } from "./api";
+
+const App = () => {
+  if (window.location.pathname === '/signup') {
+    return <SignupPage />;
+  }
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [trips, setTrips] = useState<Trip[]>(INITIAL_TRIPS);
+
+  // Load trips from backend MongoDB if available
+  useEffect(() => {
+    fetch(`${API_BASE}/api/trips`)
+      .then(res => res.json())
+      .then(data => setTrips(data.map((t: any) => ({
+        id: t._id,
+        name: t.name,
+        startDate: t.startDate,
+        endDate: t.endDate,
+        organizerId: t.organizerId,
+        travelerIds: t.travelerIds || []
+      }))))
+      .catch(err => console.error('Failed to fetch trips', err));
+  }, []);
+  const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>(INITIAL_FINANCIAL_RECORDS);
+  const [documents, setDocuments] = useState<Document[]>(INITIAL_DOCUMENTS);
+  const [personalDataRecords, setPersonalDataRecords] = useState<PersonalDataRecord[]>(INITIAL_PERSONAL_DATA_RECORDS);
+  const [personalDataConfigs, setPersonalDataConfigs] = useState<PersonalDataFieldConfig[]>(DEFAULT_PERSONAL_DATA_FIELD_CONFIGS);
+  const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>(INITIAL_ITINERARY_ITEMS);
+  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'auto');
+
+  useEffect(() => {
+    const applyTheme = (t: Theme) => {
+        if (t === 'auto') {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+        } else {
+            document.documentElement.setAttribute('data-theme', t);
+        }
+    };
+
+    applyTheme(theme);
+    localStorage.setItem('theme', theme);
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+        if (theme === 'auto') {
+            applyTheme('auto');
+        }
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [theme]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/field-config`)
+      .then(res => res.json())
+      .then(data => setPersonalDataConfigs(data.map((c: any) => ({
+        id: c.field,
+        tripId: String(c.tripId),
+        label: c.label,
+        type: c.type,
+        enabled: c.enabled,
+        locked: c.locked
+      }))))
+      .catch(() => {});
+  }, []);
+  
+  const handleLogin = (role: Role) => {
+    setCurrentUserRole(role);
+  };
+
+  const handleLogout = () => {
+    setCurrentUserRole(null);
+  };
+  
+  const handleCreateTrip = (newTrip: Trip) => {
+    setTrips(prevTrips => [...prevTrips, newTrip]);
+  };
+
+  const handleAddFinancialRecord = (newRecordData: Omit<FinancialRecord, 'id'>) => {
+    const newRecord: FinancialRecord = { ...newRecordData, id: Date.now() };
+    setFinancialRecords(prev => [...prev, newRecord]);
+  };
+  
+  const handleAddDocument = (newDocData: Omit<Document, 'id'>) => {
+      const newDoc: Document = { ...newDocData, id: Date.now() };
+      setDocuments(prev => [...prev, newDoc]);
+  }
+
+  const handleUpdatePersonalData = (updatedRecord: Omit<PersonalDataRecord, 'isLocked'>) => {
+      setPersonalDataRecords(prev => {
+          const existingIndex = prev.findIndex(r => r.userId === updatedRecord.userId && r.tripId === updatedRecord.tripId && r.fieldId === updatedRecord.fieldId);
+          if (existingIndex > -1) {
+              const newRecords = [...prev];
+              // Preserve the existing isLocked value, only update the value
+              newRecords[existingIndex] = { ...newRecords[existingIndex], value: updatedRecord.value };
+              return newRecords;
+          } else {
+              // It's a new record, so add it with isLocked defaulting to false
+              return [...prev, { ...updatedRecord, isLocked: false }];
+          }
+      });
+      fetch(`${API_BASE}/api/users/${updatedRecord.userId}/personal-data`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: updatedRecord.fieldId, value: updatedRecord.value })
+      }).catch(() => {});
+  };
+
+  const handleTogglePersonalDataLock = (userId: string, fieldId: string, tripId: string) => {
+      setPersonalDataRecords(prev =>
+          prev.map(record => {
+              if (record.userId === userId && record.fieldId === fieldId && record.tripId === tripId) {
+                  return { ...record, isLocked: !record.isLocked };
+              }
+              return record;
+          })
+      );
+      const record = personalDataRecords.find(r => r.userId === userId && r.fieldId === fieldId && r.tripId === tripId);
+      fetch(`${API_BASE}/api/users/${userId}/personal-data/${fieldId}/lock`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locked: !(record?.isLocked) })
+      }).catch(() => {});
+  };
+
+  const handleAddItineraryItem = (newItemData: Omit<ItineraryItem, 'id'>) => {
+    const newItem: ItineraryItem = { ...newItemData, id: Date.now().toString() };
+    setItineraryItems(prev => [...prev, newItem]);
+  };
+
+  const handleRemoveItineraryItem = (idToRemove: string) => {
+      setItineraryItems(prev => prev.filter(item => item.id !== idToRemove));
+  };
+  
+  const currentUser = useMemo(() => {
+    if (!currentUserRole) return null;
+    return USERS.find(u => u.role === currentUserRole);
+  }, [currentUserRole]);
+
+  if (!currentUser) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  return (
+    <Dashboard
+      user={currentUser}
+      trips={trips}
+      onLogout={handleLogout}
+      onCreateTrip={handleCreateTrip}
+      financialRecords={financialRecords}
+      onAddFinancialRecord={handleAddFinancialRecord}
+      documents={documents}
+      onAddDocument={handleAddDocument}
+      personalDataConfigs={personalDataConfigs.filter(c => c.enabled !== false)}
+      personalDataRecords={personalDataRecords}
+      onUpdatePersonalData={handleUpdatePersonalData}
+      onTogglePersonalDataLock={handleTogglePersonalDataLock}
+      itineraryItems={itineraryItems}
+      onAddItineraryItem={handleAddItineraryItem}
+      onRemoveItineraryItem={handleRemoveItineraryItem}
+      theme={theme}
+      onThemeChange={setTheme}
+    />
+  );
+};
+
+export default App;
+
