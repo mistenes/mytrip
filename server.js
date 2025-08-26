@@ -2,7 +2,12 @@ import express from 'express';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import crypto from 'crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
 // Using Brevo's REST API directly so no external SDK is required
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
@@ -82,8 +87,13 @@ async function sendInvitationEmail(email, signupUrl) {
 
 const upload = multer({ dest: 'uploads/' });
 app.use('/uploads', express.static('uploads'));
+app.use(express.static(__dirname, { index: false }));
 
 app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/health', (_req, res) => {
   res.type('text/plain').send('mytrip server: OK');
 });
 

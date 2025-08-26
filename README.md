@@ -19,6 +19,7 @@ This contains everything you need to run your app locally.
    `npm run server`
 
 The server uses the `MONGODB_URI` environment variable and defaults to `mongodb://localhost:27017/mytrip`.
+When deployed, the Express server serves `index.html` at the root path so the frontend and backend can share the same host. A health check is available at `/health`.
 
 ## Personal data management
 
