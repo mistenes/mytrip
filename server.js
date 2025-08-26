@@ -68,7 +68,10 @@ const Invitation = mongoose.model('Invitation', invitationSchema);
 async function sendInvitationEmail(email, signupUrl) {
   const apiKey = process.env.BREVO_API_KEY;
   const senderEmail = process.env.BREVO_SENDER_EMAIL;
-  if (!apiKey || !senderEmail) return;
+  if (!apiKey || !senderEmail) {
+    console.error('Brevo email not sent: missing BREVO_API_KEY or BREVO_SENDER_EMAIL');
+    return;
+  }
   try {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
@@ -86,9 +89,11 @@ async function sendInvitationEmail(email, signupUrl) {
         htmlContent: `<p>You have been invited to join a trip. Sign up here: <a href="${signupUrl}">${signupUrl}</a></p>`
       })
     });
+    const text = await res.text();
     if (!res.ok) {
-      const text = await res.text();
       console.error('Brevo error', res.status, text);
+    } else {
+      console.log('Brevo response', res.status, text);
     }
   } catch (err) {
     console.error('Email send failed', err);
