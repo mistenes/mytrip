@@ -331,6 +331,40 @@ const InviteUserModal = ({
   );
 };
 
+const UserManagement = ({ onInvite }: { onInvite: () => void }) => {
+  const [users, setUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/users`).then(res => res.json()).then(setUsers);
+  }, []);
+
+  return (
+    <div>
+      <div className="dashboard-header">
+        <h2>Felhasználók</h2>
+        <button onClick={onInvite} className="btn btn-secondary">Meghívó küldése</button>
+      </div>
+      {users.length > 0 ? (
+        <table className="user-table">
+          <thead>
+            <tr><th>Név</th><th>Szerep</th></tr>
+          </thead>
+          <tbody>
+            {users.map((u: any) => (
+              <tr key={u._id}>
+                <td>{u.name}</td>
+                <td>{u.role}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="no-users">Nincsenek felhasználók.</p>
+      )}
+    </div>
+  );
+};
+
 const TripCard = ({ trip, onSelectTrip }: { trip: Trip; onSelectTrip: () => void; }) => {
     return (
         <div className="trip-card">
@@ -1146,21 +1180,27 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
 }
 
 
-const Sidebar = ({ 
-    trips, 
-    selectedTripId, 
-    activeView, 
-    onSelectTrip, 
-    onSelectView, 
+const Sidebar = ({
+    trips,
+    selectedTripId,
+    activeView,
+    onSelectTrip,
+    onSelectView,
     onShowTrips,
+    onShowUsers,
+    mainView,
+    userRole,
     isOpen
-}: { 
+}: {
     trips: Trip[],
     selectedTripId: string | null,
     activeView: TripView,
     onSelectTrip: (id: string) => void,
     onSelectView: (view: TripView) => void,
     onShowTrips: () => void,
+    onShowUsers: () => void,
+    mainView: 'trips' | 'users',
+    userRole: Role,
     isOpen: boolean
 }) => {
     
@@ -1177,11 +1217,18 @@ const Sidebar = ({
             <nav>
                 <ul className="main-nav-list">
                     <li className="nav-item">
-                        <a href="#" onClick={(e) => { e.preventDefault(); onShowTrips(); }} className={!selectedTripId ? 'active' : ''}>
+                        <a href="#" onClick={(e) => { e.preventDefault(); onShowTrips(); }} className={mainView === 'trips' && !selectedTripId ? 'active' : ''}>
                            Utazásaink
                         </a>
                     </li>
-                    {trips.map(trip => (
+                    {userRole === 'admin' && (
+                      <li className="nav-item">
+                        <a href="#" onClick={(e) => { e.preventDefault(); onShowUsers(); }} className={mainView === 'users' ? 'active' : ''}>
+                          Felhasználók
+                        </a>
+                      </li>
+                    )}
+                    {mainView === 'trips' && trips.map(trip => (
                         <li key={trip.id} className={`trip-item ${trip.id === selectedTripId ? 'active' : ''}`}>
                             <a href="#" onClick={(e) => { e.preventDefault(); onSelectTrip(trip.id); }}>
                                 {trip.name}
@@ -1210,14 +1257,14 @@ const Sidebar = ({
 };
 
 
-const Dashboard = ({ 
-    user, trips, onLogout, onCreateTrip, 
-    financialRecords, onAddFinancialRecord, 
-    documents, onAddDocument, 
+const Dashboard = ({
+    user, trips, onLogout, onCreateTrip,
+    financialRecords, onAddFinancialRecord,
+    documents, onAddDocument,
     personalDataConfigs, personalDataRecords, onUpdatePersonalData, onTogglePersonalDataLock,
     itineraryItems, onAddItineraryItem, onRemoveItineraryItem,
-    theme, onThemeChange 
-}: { 
+    theme, onThemeChange
+}: {
     user: User, 
     trips: Trip[], 
     onLogout: () => void, 
@@ -1239,6 +1286,7 @@ const Dashboard = ({
   const [isModalOpen, setModalOpen] = useState(false);
   const [isInviteOpen, setInviteOpen] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  const [mainView, setMainView] = useState<'trips' | 'users'>('trips');
   const [activeTripView, setActiveTripView] = useState<TripView>('summary');
   const [isMobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     
@@ -1297,11 +1345,22 @@ const Dashboard = ({
   };
 
   const handleShowTrips = () => {
+    setMainView('trips');
     setSelectedTripId(null);
     setMobileSidebarOpen(false); // Close mobile menu on selection
   }
-  
+
+  const handleShowUsers = () => {
+    setMainView('users');
+    setSelectedTripId(null);
+    setMobileSidebarOpen(false); // Close mobile menu on selection
+  }
+
   const renderContent = () => {
+    if (mainView === 'users') {
+        return <UserManagement onInvite={() => setInviteOpen(true)} />;
+    }
+
     if (selectedTrip) {
         switch (activeTripView) {
             case 'summary': return <TripSummary trip={selectedTrip} />;
@@ -1312,7 +1371,7 @@ const Dashboard = ({
             default: return <h2>Válasszon nézetet</h2>;
         }
     }
-    
+
     return (
         <>
             <div className="dashboard-header">
@@ -1321,11 +1380,6 @@ const Dashboard = ({
                 <button onClick={() => setModalOpen(true)} className="btn btn-primary">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     <span>Új utazás létrehozása</span>
-                </button>
-                )}
-                {(user.role === 'admin' || user.role === 'organizer') && (
-                <button onClick={() => setInviteOpen(true)} className="btn btn-secondary">
-                    Meghívó küldése
                 </button>
                 )}
             </div>
@@ -1347,13 +1401,16 @@ const Dashboard = ({
 
   return (
      <div className={`dashboard-layout with-sidebar ${isMobileSidebarOpen ? 'sidebar-is-open' : ''}`}>
-        <Sidebar 
+        <Sidebar
             trips={visibleTrips}
             selectedTripId={selectedTripId}
             activeView={activeTripView}
             onSelectTrip={handleSelectTrip}
             onSelectView={handleSelectView}
             onShowTrips={handleShowTrips}
+            onShowUsers={handleShowUsers}
+            mainView={mainView}
+            userRole={user.role}
             isOpen={isMobileSidebarOpen}
         />
         <div className="sidebar-overlay" onClick={() => setMobileSidebarOpen(false)}></div>
