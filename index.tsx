@@ -15,36 +15,36 @@ interface User {
 }
 
 interface Trip {
-  id: number;
+  id: string;
   name: string;
   startDate: string;
   endDate: string;
-  organizerId: number;
-  travelerIds: number[];
+  organizerId?: string;
+  travelerIds: string[];
 }
 
 interface FinancialRecord {
-  id: number;
-  tripId: number;
-  userId: number;
+  id: string;
+  tripId: string;
+  userId: string;
   description: string;
   amount: number; // positive for payment, negative for expense
   date: string;
 }
 
 interface Document {
-  id: number;
-  tripId: number;
+  id: string;
+  tripId: string;
   name: string;
   category: string;
   uploadDate: string;
   fileUrl: string; // Mock URL
-  visibleTo: 'all' | number[];
+  visibleTo: 'all' | string[];
 }
 
 interface PersonalDataFieldConfig {
     id: string; // e.g., 'passportNumber'
-    tripId: number;
+    tripId: string;
     label: string;
     type: 'text' | 'date' | 'file';
     enabled?: boolean;
@@ -52,16 +52,16 @@ interface PersonalDataFieldConfig {
 }
 
 interface PersonalDataRecord {
-    userId: number;
-    tripId: number;
+    userId: string;
+    tripId: string;
     fieldId: string;
     value: string; // for text/date, or filename for file
     isLocked: boolean;
 }
 
 interface ItineraryItem {
-  id: number;
-  tripId: number;
+  id: string;
+  tripId: string;
   title: string;
   description: string;
   startDateTimeLocal: string; // "YYYY-MM-DDTHH:mm"
@@ -205,30 +205,39 @@ const Header = ({ user, onLogout, onToggleSidebar, showHamburger, theme, onTheme
 const CreateTripModal = ({
   isOpen,
   onClose,
-  onCreate,
-  organizers
+  onCreated,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (trip: Omit<Trip, 'id'>) => void;
-  organizers: User[];
+  onCreated: (trip: Trip) => void;
 }) => {
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [organizerId, setOrganizerId] = useState<number>(organizers[0]?.id || 0);
+  const [organizerEmail, setOrganizerEmail] = useState('');
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !startDate || !endDate || !organizerId) {
-        alert("Kérjük, töltsön ki minden mezőt.");
-        return;
+    if (!name || !startDate || !endDate || !organizerEmail) {
+      alert('Kérjük, töltsön ki minden mezőt.');
+      return;
     }
-    onCreate({ name, startDate, endDate, organizerId: Number(organizerId), travelerIds: [] });
+    const tripRes = await fetch(`${API_BASE}/api/trips`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, startDate, endDate, travelerIds: [] })
+    });
+    const trip = await tripRes.json();
+    await fetch(`${API_BASE}/api/invitations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: organizerEmail, role: 'organizer', tripId: trip._id })
+    });
+    onCreated({ id: trip._id, name: trip.name, startDate: trip.startDate, endDate: trip.endDate, organizerId: trip.organizerId, travelerIds: trip.travelerIds || [] });
     onClose();
-    setName(''); setStartDate(''); setEndDate(''); setOrganizerId(organizers[0]?.id || 0);
+    setName(''); setStartDate(''); setEndDate(''); setOrganizerEmail('');
   };
 
   return (
@@ -249,10 +258,8 @@ const CreateTripModal = ({
             <input id="endDate" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} required />
           </div>
           <div className="form-group">
-            <label htmlFor="organizer">Szervező</label>
-            <select id="organizer" value={organizerId} onChange={e => setOrganizerId(Number(e.target.value))} required>
-              {organizers.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}
-            </select>
+            <label htmlFor="orgEmail">Szervező e-mail címe</label>
+            <input id="orgEmail" type="email" value={organizerEmail} onChange={e => setOrganizerEmail(e.target.value)} required />
           </div>
           <div className="modal-actions">
             <button type="button" onClick={onClose} className="btn btn-secondary">Mégse</button>
@@ -264,8 +271,67 @@ const CreateTripModal = ({
   );
 };
 
+const InviteUserModal = ({
+  isOpen,
+  onClose,
+  trips,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  trips: Trip[];
+}) => {
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<Role>('traveler');
+  const [tripId, setTripId] = useState<string>('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await fetch(`${API_BASE}/api/invitations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, role, tripId: tripId || undefined })
+    });
+    alert('Meghívó elküldve');
+    onClose();
+    setEmail(''); setTripId(''); setRole('traveler');
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <h2>Meghívó küldése</h2>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="inviteEmail">E-mail</label>
+            <input id="inviteEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label htmlFor="inviteRole">Szerep</label>
+            <select id="inviteRole" value={role} onChange={e => setRole(e.target.value as Role)}>
+              <option value="organizer">Szervező</option>
+              <option value="traveler">Utazó</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="inviteTrip">Utazás (opcionális)</label>
+            <select id="inviteTrip" value={tripId} onChange={e => setTripId(e.target.value)}>
+              <option value="">Nincs</option>
+              {trips.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div className="modal-actions">
+            <button type="button" onClick={onClose} className="btn btn-secondary">Mégse</button>
+            <button type="submit" className="btn btn-primary">Meghívás</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const TripCard = ({ trip, onSelectTrip }: { trip: Trip; onSelectTrip: () => void; }) => {
-    const organizer = USERS.find(u => u.id === trip.organizerId);
     return (
         <div className="trip-card">
             <div>
@@ -275,9 +341,9 @@ const TripCard = ({ trip, onSelectTrip }: { trip: Trip; onSelectTrip: () => void
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                         <span>{trip.startDate} - {trip.endDate}</span>
                     </div>
-                     <div className="detail-item">
+                    <div className="detail-item">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                        <span><strong>Szervező:</strong> {organizer ? organizer.name : 'Ismeretlen'}</span>
+                        <span><strong>Szervező:</strong> {trip.organizerId || 'Ismeretlen'}</span>
                     </div>
                     <div className="detail-item">
                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -954,7 +1020,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
     records: PersonalDataRecord[];
     configs: PersonalDataFieldConfig[];
     onUpdateRecord: (record: Omit<PersonalDataRecord, 'isLocked'>) => void;
-    onToggleLock: (userId: number, fieldId: string, tripId: number) => void;
+    onToggleLock: (userId: string, fieldId: string, tripId: string) => void;
 }) => {
 
     const tripParticipants = useMemo(() => {
@@ -1090,9 +1156,9 @@ const Sidebar = ({
     isOpen
 }: { 
     trips: Trip[],
-    selectedTripId: number | null,
+    selectedTripId: string | null,
     activeView: TripView,
-    onSelectTrip: (id: number) => void,
+    onSelectTrip: (id: string) => void,
     onSelectView: (view: TripView) => void,
     onShowTrips: () => void,
     isOpen: boolean
@@ -1163,15 +1229,16 @@ const Dashboard = ({
     personalDataConfigs: PersonalDataFieldConfig[],
     personalDataRecords: PersonalDataRecord[],
     onUpdatePersonalData: (record: Omit<PersonalDataRecord, 'isLocked'>) => void,
-    onTogglePersonalDataLock: (userId: number, fieldId: string, tripId: number) => void,
+    onTogglePersonalDataLock: (userId: string, fieldId: string, tripId: string) => void,
     itineraryItems: ItineraryItem[],
     onAddItineraryItem: (item: Omit<ItineraryItem, 'id'>) => void,
-    onRemoveItineraryItem: (id: number) => void,
+    onRemoveItineraryItem: (id: string) => void,
     theme: Theme,
     onThemeChange: (theme: Theme) => void
 }) => {
   const [isModalOpen, setModalOpen] = useState(false);
-  const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
+  const [isInviteOpen, setInviteOpen] = useState(false);
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [activeTripView, setActiveTripView] = useState<TripView>('summary');
   const [isMobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     
@@ -1180,9 +1247,9 @@ const Dashboard = ({
       case 'admin':
         return trips;
       case 'organizer':
-        return trips.filter((trip: Trip) => trip.organizerId === user.id);
+        return trips.filter((trip: Trip) => trip.organizerId === String(user.id));
       case 'traveler':
-        return trips.filter((trip: Trip) => trip.travelerIds.includes(user.id));
+        return trips.filter((trip: Trip) => trip.travelerIds.includes(String(user.id)));
       default:
         return [];
     }
@@ -1218,16 +1285,7 @@ const Dashboard = ({
       return itineraryItems.filter(i => i.tripId === selectedTripId);
   }, [selectedTripId, itineraryItems]);
 
-  const handleCreateTrip = (newTripData: Omit<Trip, 'id'>) => {
-    const newTrip: Trip = {
-        ...newTripData,
-        id: Date.now(), // simple unique id
-    };
-    onCreateTrip(newTrip);
-    alert(`Meghívó link a(z) "${newTrip.name}" utazáshoz:\n/invite?trip=${newTrip.id}&token=mock_token`);
-  };
-  
-  const handleSelectTrip = (tripId: number) => {
+  const handleSelectTrip = (tripId: string) => {
     setSelectedTripId(tripId);
     setActiveTripView('summary');
     setMobileSidebarOpen(false); // Close mobile menu on selection
@@ -1242,8 +1300,6 @@ const Dashboard = ({
     setSelectedTripId(null);
     setMobileSidebarOpen(false); // Close mobile menu on selection
   }
-  
-  const organizers = USERS.filter(u => u.role === 'organizer');
   
   const renderContent = () => {
     if (selectedTrip) {
@@ -1267,11 +1323,16 @@ const Dashboard = ({
                     <span>Új utazás létrehozása</span>
                 </button>
                 )}
+                {(user.role === 'admin' || user.role === 'organizer') && (
+                <button onClick={() => setInviteOpen(true)} className="btn btn-secondary">
+                    Meghívó küldése
+                </button>
+                )}
             </div>
             <div className="trip-list">
                 {visibleTrips.length > 0 ? (
-                visibleTrips.map(trip => 
-                    <TripCard 
+                visibleTrips.map(trip =>
+                    <TripCard
                         key={trip.id} 
                         trip={trip} 
                         onSelectTrip={() => handleSelectTrip(trip.id)}
@@ -1309,11 +1370,17 @@ const Dashboard = ({
             {renderContent()}
           </main>
           {user.role === 'admin' && (
-            <CreateTripModal 
+            <CreateTripModal
                 isOpen={isModalOpen}
                 onClose={() => setModalOpen(false)}
-                onCreate={handleCreateTrip}
-                organizers={organizers}
+                onCreated={onCreateTrip}
+            />
+          )}
+          {(user.role === 'admin' || user.role === 'organizer') && (
+            <InviteUserModal
+                isOpen={isInviteOpen}
+                onClose={() => setInviteOpen(false)}
+                trips={trips}
             />
           )}
         </div>
@@ -1330,7 +1397,14 @@ const App = () => {
   useEffect(() => {
     fetch(`${API_BASE}/api/trips`)
       .then(res => res.json())
-      .then(data => setTrips(data))
+      .then(data => setTrips(data.map((t: any) => ({
+        id: t._id,
+        name: t.name,
+        startDate: t.startDate,
+        endDate: t.endDate,
+        organizerId: t.organizerId,
+        travelerIds: t.travelerIds || []
+      }))))
       .catch(err => console.error('Failed to fetch trips', err));
   }, []);
   const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>(INITIAL_FINANCIAL_RECORDS);
@@ -1369,7 +1443,7 @@ const App = () => {
       .then(res => res.json())
       .then(data => setPersonalDataConfigs(data.map((c: any) => ({
         id: c.field,
-        tripId: c.tripId,
+        tripId: String(c.tripId),
         label: c.label,
         type: c.type,
         enabled: c.enabled,
@@ -1420,7 +1494,7 @@ const App = () => {
       }).catch(() => {});
   };
 
-  const handleTogglePersonalDataLock = (userId: number, fieldId: string, tripId: number) => {
+  const handleTogglePersonalDataLock = (userId: string, fieldId: string, tripId: string) => {
       setPersonalDataRecords(prev =>
           prev.map(record => {
               if (record.userId === userId && record.fieldId === fieldId && record.tripId === tripId) {
@@ -1438,11 +1512,11 @@ const App = () => {
   };
 
   const handleAddItineraryItem = (newItemData: Omit<ItineraryItem, 'id'>) => {
-    const newItem: ItineraryItem = { ...newItemData, id: Date.now() };
+    const newItem: ItineraryItem = { ...newItemData, id: Date.now().toString() };
     setItineraryItems(prev => [...prev, newItem]);
   };
 
-  const handleRemoveItineraryItem = (idToRemove: number) => {
+  const handleRemoveItineraryItem = (idToRemove: string) => {
       setItineraryItems(prev => prev.filter(item => item.id !== idToRemove));
   };
   

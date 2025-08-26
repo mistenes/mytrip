@@ -129,7 +129,11 @@ app.post('/api/register/:token', async (req, res) => {
   const user = new User({ name: req.body.name, role: invitation.role });
   await user.save();
   if (invitation.tripId) {
-    await Trip.findByIdAndUpdate(invitation.tripId, { $push: { travelerIds: user._id } });
+    if (invitation.role === 'organizer') {
+      await Trip.findByIdAndUpdate(invitation.tripId, { organizerId: user._id });
+    } else if (invitation.role === 'traveler') {
+      await Trip.findByIdAndUpdate(invitation.tripId, { $push: { travelerIds: user._id } });
+    }
   }
   invitation.used = true;
   await invitation.save();
