@@ -29,7 +29,11 @@ const personalDataSchema = new mongoose.Schema({
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
-  name: String,
+  firstName: String,
+  lastName: String,
+  name: String, // convenience full name
+  email: String,
+  passwordHash: String,
   role: String,
   personalData: [personalDataSchema],
   passportPhoto: String,
@@ -104,7 +108,7 @@ const upload = multer({ dest: 'uploads/' });
 app.use('/uploads', express.static('uploads'));
 app.use(express.static(__dirname, { index: false }));
 
-app.get('/', (_req, res) => {
+app.get(['/', '/signup'], (_req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
@@ -141,8 +145,27 @@ app.post('/api/register/:token', async (req, res) => {
   if (!invitation) {
     return res.status(400).json({ message: 'Invalid or expired invitation' });
   }
-  const user = new User({ name: req.body.name, role: invitation.role });
+
+  const { firstName, lastName, password, verifyPassword } = req.body;
+  const nameRegex = /^[A-Za-z]+$/;
+  if (!nameRegex.test(firstName) || !nameRegex.test(lastName)) {
+    return res.status(400).json({ message: 'Names must use English letters only' });
+  }
+  if (!password || password !== verifyPassword || password.length < 8) {
+    return res.status(400).json({ message: 'Passwords must match and be at least 8 characters' });
+  }
+
+  const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+  const user = new User({
+    firstName,
+    lastName,
+    name: `${firstName} ${lastName}`,
+    email: invitation.email,
+    passwordHash,
+    role: invitation.role
+  });
   await user.save();
+
   if (invitation.tripId) {
     if (invitation.role === 'organizer') {
       await Trip.findByIdAndUpdate(invitation.tripId, { organizerId: user._id });
@@ -152,7 +175,7 @@ app.post('/api/register/:token', async (req, res) => {
   }
   invitation.used = true;
   await invitation.save();
-  res.status(201).json(user);
+  res.status(201).json({ id: user._id, email: user.email });
 });
 
 app.get('/api/users', async (_req, res) => {
