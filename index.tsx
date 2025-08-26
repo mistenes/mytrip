@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 // --- TYPE DEFINITIONS ---
 type Role = 'admin' | 'organizer' | 'traveler';
 type TripView = 'summary' | 'financials' | 'itinerary' | 'documents' | 'personalData';
@@ -69,93 +71,24 @@ interface ItineraryItem {
 }
 
 
-// --- MOCK DATA ---
+// --- MOCK USERS FOR LOGIN ONLY ---
 const USERS: User[] = [
-  { id: 1, name: 'Admin Felhasználó', role: 'admin' },
-  { id: 2, name: 'Profi Szervező', role: 'organizer' },
-  { id: 3, name: 'Boldog Utazó', role: 'traveler' },
-  { id: 4, name: 'Kovács Kázmér', role: 'organizer' },
+  { id: 1, name: 'Admin', role: 'admin' },
+  { id: 2, name: 'Organizer', role: 'organizer' },
+  { id: 3, name: 'Traveler', role: 'traveler' },
 ];
 
-const INITIAL_TRIPS: Trip[] = [
-  {
-    id: 101,
-    name: 'Párizsi Kaland',
-    startDate: '2024-09-15',
-    endDate: '2024-09-22',
-    organizerId: 2,
-    travelerIds: [3],
-  },
-  {
-    id: 102,
-    name: 'Tokiói Tech Csúcs',
-    startDate: '2024-10-20',
-    endDate: '2024-10-25',
-    organizerId: 4,
-    travelerIds: [],
-  },
-  {
-    id: 103,
-    name: 'Római Felfedezés',
-    startDate: '2024-11-05',
-    endDate: '2024-11-12',
-    organizerId: 2,
-    travelerIds: [3],
-  },
-];
+const INITIAL_TRIPS: Trip[] = [];
 
-const INITIAL_FINANCIAL_RECORDS: FinancialRecord[] = [
-    { id: 1, tripId: 101, userId: 3, description: 'Repülőjegy', amount: -250, date: '2024-08-01' },
-    { id: 2, tripId: 101, userId: 3, description: 'Szállás előleg', amount: -180, date: '2024-08-05' },
-    { id: 3, tripId: 101, userId: 3, description: 'Első befizetés', amount: 500, date: '2024-07-20' },
-    { id: 4, tripId: 103, userId: 3, description: 'Múzeumbelépő', amount: -50, date: '2024-10-10' },
-    { id: 5, tripId: 103, userId: 3, description: 'Befizetés', amount: 100, date: '2024-10-01' },
-];
+const INITIAL_FINANCIAL_RECORDS: FinancialRecord[] = [];
 
-const INITIAL_DOCUMENTS: Document[] = [
-  { id: 1, tripId: 101, name: 'Párizs Repjegy - Oda', category: 'Repjegyek', uploadDate: '2024-08-10', fileUrl: '#', visibleTo: 'all' },
-  { id: 2, tripId: 101, name: 'Szállás Visszaigazolás', category: 'Szállás', uploadDate: '2024-08-12', fileUrl: '#', visibleTo: 'all' },
-  { id: 3, tripId: 101, name: 'Biztosítási Kötvény - Boldog Utazó', category: 'Biztosítás', uploadDate: '2024-08-15', fileUrl: '#', visibleTo: [3] },
-  { id: 4, tripId: 103, name: 'Colosseum Jegyek', category: 'Programok', uploadDate: '2024-10-20', fileUrl: '#', visibleTo: 'all' },
-];
+const INITIAL_DOCUMENTS: Document[] = [];
 
-const DEFAULT_PERSONAL_DATA_FIELD_CONFIGS: PersonalDataFieldConfig[] = [
-    { id: 'fullName', tripId: 101, label: 'Teljes név (útlevél szerint)', type: 'text' },
-    { id: 'dob', tripId: 101, label: 'Születési dátum', type: 'date' },
-    { id: 'passportNumber', tripId: 101, label: 'Útlevél száma', type: 'text' },
-    { id: 'passportPhoto', tripId: 101, label: 'Útlevél fotó', type: 'file' },
-    { id: 'visa', tripId: 102, label: 'Vízum másolat', type: 'file' },
-    { id: 'idCard', tripId: 103, label: 'Személyi igazolvány másolat', type: 'file' },
-];
+const DEFAULT_PERSONAL_DATA_FIELD_CONFIGS: PersonalDataFieldConfig[] = [];
 
-const INITIAL_PERSONAL_DATA_RECORDS: PersonalDataRecord[] = [
-    { userId: 3, tripId: 101, fieldId: 'fullName', value: 'Boldog Utazó', isLocked: true },
-    { userId: 3, tripId: 101, fieldId: 'dob', value: '1990-05-15', isLocked: false },
-    { userId: 3, tripId: 101, fieldId: 'passportPhoto', value: 'passport_utazo.pdf', isLocked: false },
-];
+const INITIAL_PERSONAL_DATA_RECORDS: PersonalDataRecord[] = [];
 
-const INITIAL_ITINERARY_ITEMS: ItineraryItem[] = [
-    {
-        id: 1, tripId: 101, title: 'Érkezés Párizsba és transzfer a hotelbe',
-        description: 'Érkezés a Charles de Gaulle repülőtérre (CDG), majd transzfer a szállodába. Bejelentkezés és egy kis pihenés.',
-        startDateTimeLocal: '2024-09-15T16:00', timeZone: 'Europe/Paris', location: 'Hotel Le Chat Noir, Montmartre'
-    },
-    {
-        id: 2, tripId: 101, title: 'Séta a Montmartre-on és vacsora',
-        description: 'Felfedezzük a művészek negyedét, a Sacré-Cœur-bazilikát és a Place du Tertre-t. A vacsora egy hangulatos helyi bisztróban lesz.',
-        startDateTimeLocal: '2024-09-15T18:30', endDateTimeLocal: '2024-09-15T21:00', timeZone: 'Europe/Paris', location: 'Montmartre'
-    },
-    {
-        id: 3, tripId: 101, title: 'Louvre Múzeum látogatás',
-        description: 'Előre lefoglalt jegyekkel tekintjük meg a világ leghíresebb műalkotásait, köztük a Mona Lisát és a Milói Vénuszt.',
-        startDateTimeLocal: '2024-09-16T09:30', endDateTimeLocal: '2024-09-16T13:00', timeZone: 'Europe/Paris', location: 'Musée du Louvre'
-    },
-    {
-        id: 4, tripId: 101, title: 'Eiffel-torony',
-        description: 'Felmegyünk a torony csúcsára, ahonnan lenyűgöző kilátás nyílik a városra. A program a naplementéhez van igazítva.',
-        startDateTimeLocal: '2024-09-16T19:00', timeZone: 'Europe/Paris', location: 'Eiffel-torony'
-    },
-];
+const INITIAL_ITINERARY_ITEMS: ItineraryItem[] = [];
 
 // --- MOCK CURRENT USERS (for demo purposes) ---
 const MOCK_CURRENT_USER = {
@@ -1049,7 +982,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                  if (fieldId === 'passportPhoto') {
                     const formData = new FormData();
                     formData.append('photo', file);
-                    await fetch(`http://localhost:3001/api/users/${user.id}/passport-photo`, {
+                    await fetch(`${API_BASE}/api/users/${user.id}/passport-photo`, {
                         method: 'POST',
                         body: formData
                     }).catch(() => {});
@@ -1395,7 +1328,7 @@ const App = () => {
 
   // Load trips from backend MongoDB if available
   useEffect(() => {
-    fetch('/api/trips')
+    fetch(`${API_BASE}/api/trips`)
       .then(res => res.json())
       .then(data => setTrips(data))
       .catch(err => console.error('Failed to fetch trips', err));
@@ -1432,7 +1365,7 @@ const App = () => {
   }, [theme]);
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/field-config')
+    fetch(`${API_BASE}/api/field-config`)
       .then(res => res.json())
       .then(data => setPersonalDataConfigs(data.map((c: any) => ({
         id: c.field,
@@ -1480,7 +1413,7 @@ const App = () => {
               return [...prev, { ...updatedRecord, isLocked: false }];
           }
       });
-      fetch(`http://localhost:3001/api/users/${updatedRecord.userId}/personal-data`, {
+      fetch(`${API_BASE}/api/users/${updatedRecord.userId}/personal-data`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ field: updatedRecord.fieldId, value: updatedRecord.value })
@@ -1497,7 +1430,7 @@ const App = () => {
           })
       );
       const record = personalDataRecords.find(r => r.userId === userId && r.fieldId === fieldId && r.tripId === tripId);
-      fetch(`http://localhost:3001/api/users/${userId}/personal-data/${fieldId}/lock`, {
+      fetch(`${API_BASE}/api/users/${userId}/personal-data/${fieldId}/lock`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ locked: !(record?.isLocked) })
