@@ -83,6 +83,10 @@ async function sendInvitationEmail(email, signupUrl) {
 const upload = multer({ dest: 'uploads/' });
 app.use('/uploads', express.static('uploads'));
 
+app.get('/', (_req, res) => {
+  res.type('text/plain').send('mytrip server: OK');
+});
+
 app.post('/api/invitations', async (req, res) => {
   const { email, role, tripId } = req.body;
   const token = crypto.randomBytes(32).toString('hex');
