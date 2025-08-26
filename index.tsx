@@ -20,6 +20,7 @@ interface Trip {
   startDate: string;
   endDate: string;
   organizerId?: string;
+  organizerName?: string;
   travelerIds: string[];
 }
 
@@ -214,30 +215,35 @@ const CreateTripModal = ({
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [organizerEmail, setOrganizerEmail] = useState('');
+  const [organizerId, setOrganizerId] = useState('');
+  const [organizers, setOrganizers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch(`${API_BASE}/api/users`)
+        .then(res => res.json())
+        .then(users => setOrganizers(users.filter((u: any) => u.role === 'organizer')));
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !startDate || !endDate || !organizerEmail) {
+    if (!name || !startDate || !endDate || !organizerId) {
       alert('Kérjük, töltsön ki minden mezőt.');
       return;
     }
     const tripRes = await fetch(`${API_BASE}/api/trips`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, startDate, endDate, travelerIds: [] })
+      body: JSON.stringify({ name, startDate, endDate, organizerId, travelerIds: [] })
     });
     const trip = await tripRes.json();
-    await fetch(`${API_BASE}/api/invitations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: organizerEmail, role: 'organizer', tripId: trip._id })
-    });
-    onCreated({ id: trip._id, name: trip.name, startDate: trip.startDate, endDate: trip.endDate, organizerId: trip.organizerId, travelerIds: trip.travelerIds || [] });
+    const selectedOrganizer = organizers.find(o => o._id === organizerId);
+    onCreated({ id: trip._id, name: trip.name, startDate: trip.startDate, endDate: trip.endDate, organizerId: organizerId, organizerName: selectedOrganizer?.name, travelerIds: trip.travelerIds || [] });
     onClose();
-    setName(''); setStartDate(''); setEndDate(''); setOrganizerEmail('');
+    setName(''); setStartDate(''); setEndDate(''); setOrganizerId('');
   };
 
   return (
@@ -258,12 +264,17 @@ const CreateTripModal = ({
             <input id="endDate" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} required />
           </div>
           <div className="form-group">
-            <label htmlFor="orgEmail">Szervező e-mail címe</label>
-            <input id="orgEmail" type="email" value={organizerEmail} onChange={e => setOrganizerEmail(e.target.value)} required />
+            <label htmlFor="organizer">Szervező</label>
+            <select id="organizer" value={organizerId} onChange={e => setOrganizerId(e.target.value)} required>
+              <option value="">Válasszon szervezőt</option>
+              {organizers.map(o => (
+                <option key={o._id} value={o._id}>{o.name}</option>
+              ))}
+            </select>
           </div>
           <div className="modal-actions">
             <button type="button" onClick={onClose} className="btn btn-secondary">Mégse</button>
-            <button type="submit" className="btn btn-primary">Létrehozás és meghívás</button>
+            <button type="submit" className="btn btn-primary">Létrehozás</button>
           </div>
         </form>
       </div>
@@ -377,7 +388,7 @@ const TripCard = ({ trip, onSelectTrip }: { trip: Trip; onSelectTrip: () => void
                     </div>
                     <div className="detail-item">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                        <span><strong>Szervező:</strong> {trip.organizerId || 'Ismeretlen'}</span>
+                        <span><strong>Szervező:</strong> {trip.organizerName || 'Ismeretlen'}</span>
                     </div>
                     <div className="detail-item">
                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -397,13 +408,12 @@ const TripCard = ({ trip, onSelectTrip }: { trip: Trip; onSelectTrip: () => void
 // --- TRIP CONTENT COMPONENTS ---
 
 const TripSummary = ({ trip }: { trip: Trip }) => {
-    const organizer = USERS.find(u => u.id === trip.organizerId);
     const travelers = USERS.filter(u => trip.travelerIds.includes(u.id));
     return (
         <div>
             <h2>Összegzés: {trip.name}</h2>
             <p><strong>Időpont:</strong> {trip.startDate} - {trip.endDate}</p>
-            <p><strong>Szervező:</strong> {organizer?.name}</p>
+            <p><strong>Szervező:</strong> {trip.organizerName || 'Ismeretlen'}</p>
             <h3>Résztvevők ({travelers.length})</h3>
             {travelers.length > 0 ? (
                 <ul>
