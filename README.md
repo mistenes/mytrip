@@ -40,6 +40,7 @@ Super admins or organizers can send signup links via Brevo. Each invitation incl
 Endpoints:
 
 - `POST /api/invitations` – body: `{ email, role, tripId }`. Generates a token, emails the signup link, and stores expiration.
+- `GET /api/invitations` – list active invitations that haven't expired or been used.
 - `GET /api/invitations/:token` – verify that an invitation token is still valid.
 - `POST /api/register/:token` – body: `{ firstName, lastName, password, verifyPassword }`. Creates the user with English-only names, assigns them to the invitation's trip, and marks the token as used.
 

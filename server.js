@@ -106,11 +106,9 @@ async function sendInvitationEmail(email, signupUrl) {
 
 const upload = multer({ dest: 'uploads/' });
 app.use('/uploads', express.static('uploads'));
-app.use(express.static(__dirname, { index: false }));
 
-app.get(['/', '/signup'], (_req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
 
 app.get('/health', (_req, res) => {
   res.type('text/plain').send('mytrip server: OK');
@@ -124,6 +122,14 @@ app.post('/api/invitations', async (req, res) => {
   const signupUrl = `${process.env.APP_URL || 'http://localhost:5173'}/signup?token=${token}`;
   await sendInvitationEmail(email, signupUrl);
   res.status(201).json({ message: 'Invitation sent' });
+});
+
+app.get('/api/invitations', async (_req, res) => {
+  const invitations = await Invitation.find({
+    used: false,
+    expiresAt: { $gt: new Date() }
+  });
+  res.json(invitations);
 });
 
 app.get('/api/invitations/:token', async (req, res) => {
@@ -253,6 +259,10 @@ app.post('/api/users/:id/passport-photo', upload.single('photo'), async (req, re
   user.passportPhoto = req.file.path;
   await user.save();
   res.json({ path: req.file.path });
+});
+
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 const port = process.env.PORT || 3001;

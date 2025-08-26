@@ -125,14 +125,27 @@ const InviteUserModal = ({
   isOpen,
   onClose,
   trips,
+  onSent,
 }: {
   isOpen: boolean;
   onClose: () => void;
   trips: Trip[];
+  onSent: () => void;
 }) => {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('traveler');
   const [tripId, setTripId] = useState<string>('');
+  const [invites, setInvites] = useState<any[]>([]);
+
+  const loadInvites = () => {
+    fetch(`${API_BASE}/api/invitations`).then(res => res.json()).then(setInvites);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadInvites();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -144,6 +157,8 @@ const InviteUserModal = ({
       body: JSON.stringify({ email, role, tripId: tripId || undefined })
     });
     alert('Meghívó elküldve');
+    onSent();
+    loadInvites();
     onClose();
     setEmail(''); setTripId(''); setRole('traveler');
   };
@@ -176,17 +191,42 @@ const InviteUserModal = ({
             <button type="submit" className="btn btn-primary">Meghívás</button>
           </div>
         </form>
+        {invites.length > 0 && (
+          <div className="pending-invites">
+            <h3>Függő meghívók</h3>
+            <table className="user-table">
+              <thead>
+                <tr><th>E-mail</th><th>Szerep</th><th>Utazás</th><th>Lejárat</th></tr>
+              </thead>
+              <tbody>
+                {invites.map((inv: any) => (
+                  <tr key={inv._id}>
+                    <td>{inv.email}</td>
+                    <td>{inv.role}</td>
+                    <td>{trips.find(t => t.id === inv.tripId)?.name || '-'}</td>
+                    <td>{new Date(inv.expiresAt).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-const UserManagement = ({ onInvite }: { onInvite: () => void }) => {
+const UserManagement = ({ onInvite, trips, refreshKey }: { onInvite: () => void; trips: Trip[]; refreshKey: number; }) => {
   const [users, setUsers] = useState<any[]>([]);
+  const [invites, setInvites] = useState<any[]>([]);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/users`).then(res => res.json()).then(setUsers);
   }, []);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/invitations`).then(res => res.json()).then(setInvites);
+  }, [refreshKey]);
 
   return (
     <div>
@@ -210,6 +250,27 @@ const UserManagement = ({ onInvite }: { onInvite: () => void }) => {
         </table>
       ) : (
         <p className="no-users">Nincsenek felhasználók.</p>
+      )}
+
+      {invites.length > 0 && (
+        <div className="pending-invites">
+          <h3>Függő meghívók</h3>
+          <table className="user-table">
+            <thead>
+              <tr><th>E-mail</th><th>Szerep</th><th>Utazás</th><th>Lejárat</th></tr>
+            </thead>
+            <tbody>
+              {invites.map((inv: any) => (
+                <tr key={inv._id}>
+                  <td>{inv.email}</td>
+                  <td>{inv.role}</td>
+                  <td>{trips.find(t => t.id === inv.tripId)?.name || '-'}</td>
+                  <td>{new Date(inv.expiresAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -1134,6 +1195,7 @@ const Dashboard = ({
 }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   const [isInviteOpen, setInviteOpen] = useState(false);
+  const [inviteRefresh, setInviteRefresh] = useState(0);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [mainView, setMainView] = useState<'trips' | 'users'>('trips');
   const [activeTripView, setActiveTripView] = useState<TripView>('summary');
@@ -1207,7 +1269,7 @@ const Dashboard = ({
 
   const renderContent = () => {
     if (mainView === 'users') {
-        return <UserManagement onInvite={() => setInviteOpen(true)} />;
+        return <UserManagement onInvite={() => setInviteOpen(true)} trips={trips} refreshKey={inviteRefresh} />;
     }
 
     if (selectedTrip) {
@@ -1225,18 +1287,23 @@ const Dashboard = ({
         <>
             <div className="dashboard-header">
                 <h2>Utazásaid</h2>
+                <div className="header-actions">
                 {user.role === 'admin' && (
                 <button onClick={() => setModalOpen(true)} className="btn btn-primary">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     <span>Új utazás létrehozása</span>
                 </button>
                 )}
+                {(user.role === 'admin' || user.role === 'organizer') && (
+                <button onClick={() => setInviteOpen(true)} className="btn btn-secondary">Meghívó küldése</button>
+                )}
+                </div>
             </div>
             <div className="trip-list">
                 {visibleTrips.length > 0 ? (
                 visibleTrips.map(trip =>
                     <TripCard
-                        key={trip.id} 
+                        key={trip.id}
                         trip={trip} 
                         onSelectTrip={() => handleSelectTrip(trip.id)}
                     />)
@@ -1287,6 +1354,7 @@ const Dashboard = ({
                 isOpen={isInviteOpen}
                 onClose={() => setInviteOpen(false)}
                 trips={trips}
+                onSent={() => setInviteRefresh(v => v + 1)}
             />
           )}
         </div>
