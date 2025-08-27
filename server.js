@@ -139,12 +139,20 @@ app.get('/health', (_req, res) => {
 
 app.post('/api/invitations', async (req, res) => {
   const { email, role, tripId } = req.body;
+  const existing = await Invitation.findOne({
+    email,
+    used: false,
+    expiresAt: { $gt: new Date() }
+  });
+  if (existing) {
+    return res.status(409).json({ message: 'Invitation already sent' });
+  }
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  await Invitation.create({ email, role, tripId, token, expiresAt });
+  const invite = await Invitation.create({ email, role, tripId, token, expiresAt });
   const signupUrl = `${process.env.APP_URL || 'http://localhost:5173'}/signup?token=${token}`;
   await sendInvitationEmail(email, signupUrl);
-  res.status(201).json({ message: 'Invitation sent' });
+  res.status(201).json({ message: 'Invitation sent', id: invite._id });
 });
 
 app.get('/api/invitations', async (_req, res) => {
@@ -153,6 +161,22 @@ app.get('/api/invitations', async (_req, res) => {
     expiresAt: { $gt: new Date() }
   });
   res.json(invitations);
+});
+
+app.post('/api/invitations/:id/resend', async (req, res) => {
+  const invite = await Invitation.findById(req.params.id);
+  if (!invite || invite.used) return res.sendStatus(404);
+  invite.token = crypto.randomBytes(32).toString('hex');
+  invite.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await invite.save();
+  const signupUrl = `${process.env.APP_URL || 'http://localhost:5173'}/signup?token=${invite.token}`;
+  await sendInvitationEmail(invite.email, signupUrl);
+  res.json({ message: 'Invitation resent' });
+});
+
+app.delete('/api/invitations/:id', async (req, res) => {
+  await Invitation.findByIdAndDelete(req.params.id);
+  res.sendStatus(204);
 });
 
 app.get('/api/invitations/:token', async (req, res) => {

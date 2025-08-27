@@ -191,6 +191,9 @@ html[data-theme='dark'] .login-box {
 .btn-secondary:hover { background-color: var(--color-secondary-hover); }
 .btn-logout { background-color: #e63946; color: #fff; padding: 0.5rem 1rem; }
 .btn-logout:hover { background-color: #d62828; }
+.btn-danger { background-color: var(--color-negative); color: #fff; }
+.btn-danger:hover { background-color: #b02a37; }
+.btn-small { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
 
 /* --- Dashboard Layout --- */
 .dashboard-layout {
@@ -252,6 +255,11 @@ html[data-theme='dark'] .login-box {
     font-weight: 600;
 }
 
+.trip-list {
+    margin-top: 0.25rem;
+    padding-left: 0.75rem;
+}
+
 .trip-submenu {
     margin-top: 0.25rem;
     padding-left: 1rem;
@@ -279,6 +287,22 @@ html[data-theme='dark'] .login-box {
   flex-direction: column;
   height: 100%;
   background-color: var(--color-background);
+}
+
+.user-management .user-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+.user-management .user-table th,
+.user-management .user-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+.invite-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .app-header {

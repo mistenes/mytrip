@@ -151,11 +151,19 @@ const InviteUserModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch(`${API_BASE}/api/invitations`, {
+    const res = await fetch(`${API_BASE}/api/invitations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, role, tripId: tripId || undefined })
     });
+    if (res.status === 409) {
+      alert('Ehhez az e-mailhez már van meghívó. Küldje újra a Felhasználók oldalon.');
+      return;
+    }
+    if (!res.ok) {
+      alert('Hiba történt a meghívó küldésekor.');
+      return;
+    }
     alert('Meghívó elküldve');
     onSent();
     loadInvites();
@@ -224,12 +232,26 @@ const UserManagement = ({ onInvite, trips, refreshKey }: { onInvite: () => void;
     fetch(`${API_BASE}/api/users`).then(res => res.json()).then(setUsers);
   }, []);
 
-  useEffect(() => {
+  const loadInvites = () => {
     fetch(`${API_BASE}/api/invitations`).then(res => res.json()).then(setInvites);
+  };
+
+  useEffect(() => {
+    loadInvites();
   }, [refreshKey]);
 
+  const handleResend = async (id: string) => {
+    await fetch(`${API_BASE}/api/invitations/${id}/resend`, { method: 'POST' });
+    loadInvites();
+  };
+
+  const handleDelete = async (id: string) => {
+    await fetch(`${API_BASE}/api/invitations/${id}`, { method: 'DELETE' });
+    loadInvites();
+  };
+
   return (
-    <div>
+    <div className="user-management">
       <div className="dashboard-header">
         <h2>Felhasználók</h2>
         <button onClick={onInvite} className="btn btn-secondary">Meghívó küldése</button>
@@ -257,7 +279,7 @@ const UserManagement = ({ onInvite, trips, refreshKey }: { onInvite: () => void;
           <h3>Függő meghívók</h3>
           <table className="user-table">
             <thead>
-              <tr><th>E-mail</th><th>Szerep</th><th>Utazás</th><th>Lejárat</th></tr>
+              <tr><th>E-mail</th><th>Szerep</th><th>Utazás</th><th>Lejárat</th><th>Műveletek</th></tr>
             </thead>
             <tbody>
               {invites.map((inv: any) => (
@@ -266,6 +288,12 @@ const UserManagement = ({ onInvite, trips, refreshKey }: { onInvite: () => void;
                   <td>{inv.role}</td>
                   <td>{trips.find(t => t.id === inv.tripId)?.name || '-'}</td>
                   <td>{new Date(inv.expiresAt).toLocaleDateString()}</td>
+                  <td>
+                    <div className="invite-actions">
+                      <button className="btn btn-secondary btn-small" onClick={() => handleResend(inv._id)}>Újraküldés</button>
+                      <button className="btn btn-danger btn-small" onClick={() => handleDelete(inv._id)}>Törlés</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1127,9 +1155,35 @@ const Sidebar = ({
             <nav>
                 <ul className="main-nav-list">
                     <li className="nav-item">
-                        <a href="#" onClick={(e) => { e.preventDefault(); onShowTrips(); }} className={mainView === 'trips' && !selectedTripId ? 'active' : ''}>
+                        <a href="#" onClick={(e) => { e.preventDefault(); onShowTrips(); }} className={mainView === 'trips' ? 'active' : ''}>
                            Utazásaink
                         </a>
+                        {mainView === 'trips' && (
+                          <ul className="trip-list">
+                            {trips.map(trip => (
+                              <li key={trip.id} className={`trip-item ${trip.id === selectedTripId ? 'active' : ''}`}>
+                                <a href="#" onClick={(e) => { e.preventDefault(); onSelectTrip(trip.id); }}>
+                                  {trip.name}
+                                </a>
+                                {trip.id === selectedTripId && (
+                                  <ul className="trip-submenu">
+                                    {tripNavItems.map(item => (
+                                      <li key={item.key}>
+                                        <a
+                                          href="#"
+                                          onClick={(e) => { e.preventDefault(); onSelectView(item.key); }}
+                                          className={activeView === item.key ? 'active' : ''}
+                                        >
+                                          {item.label}
+                                        </a>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                     </li>
                     {userRole === 'admin' && (
                       <li className="nav-item">
@@ -1138,28 +1192,6 @@ const Sidebar = ({
                         </a>
                       </li>
                     )}
-                    {mainView === 'trips' && trips.map(trip => (
-                        <li key={trip.id} className={`trip-item ${trip.id === selectedTripId ? 'active' : ''}`}>
-                            <a href="#" onClick={(e) => { e.preventDefault(); onSelectTrip(trip.id); }}>
-                                {trip.name}
-                            </a>
-                            {trip.id === selectedTripId && (
-                                <ul className="trip-submenu">
-                                    {tripNavItems.map(item => (
-                                        <li key={item.key}>
-                                            <a 
-                                                href="#" 
-                                                onClick={(e) => { e.preventDefault(); onSelectView(item.key); }} 
-                                                className={activeView === item.key ? 'active' : ''}
-                                            >
-                                                {item.label}
-                                            </a>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </li>
-                    ))}
                 </ul>
             </nav>
         </aside>

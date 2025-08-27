@@ -43,8 +43,12 @@ Endpoints:
 
 - `POST /api/invitations` – body: `{ email, role, tripId }`. Generates a token, emails the signup link, and stores expiration.
 - `GET /api/invitations` – list active invitations that haven't expired or been used.
+- `POST /api/invitations/:id/resend` – regenerate the token, extend its expiration by 7 days and resend the email.
+- `DELETE /api/invitations/:id` – remove an invitation and invalidate the token immediately.
 - `GET /api/invitations/:token` – verify that an invitation token is still valid.
 - `POST /api/register/:token` – body: `{ firstName, lastName, username, dateOfBirth, password, verifyPassword }`. Creates the user with English-only names, records their username and birth date, assigns them to the invitation's trip, and marks the token as used.
+
+Attempting to invite an email address that already has a non-expired invite returns HTTP 409; resend the existing invitation instead of creating a new one.
 
 Set the following environment variables to enable email delivery:
 
