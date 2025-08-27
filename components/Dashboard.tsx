@@ -120,13 +120,17 @@ const CreateTripModal = ({
   );
 };
 
-const TripUserManagement = ({ trip, users, onChange }: { trip: Trip; users: User[]; onChange: () => void }) => {
+const TripUserManagement = ({ trip, users, currentUser, onChange }: { trip: Trip; users: User[]; currentUser: User; onChange: () => void }) => {
   const organizers = users.filter(u => trip.organizerIds.includes(u.id));
   const travelers = users.filter(u => trip.travelerIds.includes(u.id));
   const availableOrganizers = users.filter(u => u.role === 'organizer' && !trip.organizerIds.includes(u.id));
   const availableTravelers = users.filter(u => u.role === 'traveler' && !trip.travelerIds.includes(u.id));
   const [newOrganizer, setNewOrganizer] = useState('');
   const [newTraveler, setNewTraveler] = useState('');
+
+  const canManageOrganizers = currentUser.role === 'admin';
+  const isOrganizerOfTrip = trip.organizerIds.includes(currentUser.id);
+  const canManageTravelers = currentUser.role === 'admin' || (currentUser.role === 'organizer' && isOrganizerOfTrip);
 
   const addOrganizer = async () => {
     if (!newOrganizer) return;
@@ -167,31 +171,45 @@ const TripUserManagement = ({ trip, users, onChange }: { trip: Trip; users: User
         <h3>Szervezők</h3>
         <ul>
           {organizers.map(o => (
-            <li key={o.id}>{o.name} <button className="btn btn-danger btn-small" onClick={() => removeOrganizer(o.id)}>Eltávolítás</button></li>
+            <li key={o.id}>
+              {o.name}
+              {canManageOrganizers && o.id !== currentUser.id && organizers.length > 1 && (
+                <button className="btn btn-danger btn-small" onClick={() => removeOrganizer(o.id)}>Eltávolítás</button>
+              )}
+            </li>
           ))}
         </ul>
-        <div className="assign-row">
-          <select value={newOrganizer} onChange={e => setNewOrganizer(e.target.value)}>
-            <option value="">Szervező hozzáadása</option>
-            {availableOrganizers.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-          <button className="btn btn-secondary btn-small" onClick={addOrganizer}>Hozzáadás</button>
-        </div>
+        {canManageOrganizers && (
+          <div className="assign-row">
+            <select value={newOrganizer} onChange={e => setNewOrganizer(e.target.value)}>
+              <option value="">Szervező hozzáadása</option>
+              {availableOrganizers.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+            <button className="btn btn-secondary btn-small" onClick={addOrganizer}>Hozzáadás</button>
+          </div>
+        )}
       </div>
       <div className="trip-users-section">
         <h3>Utazók</h3>
         <ul>
           {travelers.map(t => (
-            <li key={t.id}>{t.name} <button className="btn btn-danger btn-small" onClick={() => removeTraveler(t.id)}>Eltávolítás</button></li>
+            <li key={t.id}>
+              {t.name}
+              {canManageTravelers && (
+                <button className="btn btn-danger btn-small" onClick={() => removeTraveler(t.id)}>Eltávolítás</button>
+              )}
+            </li>
           ))}
         </ul>
-        <div className="assign-row">
-          <select value={newTraveler} onChange={e => setNewTraveler(e.target.value)}>
-            <option value="">Utazó hozzáadása</option>
-            {availableTravelers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-          <button className="btn btn-secondary btn-small" onClick={addTraveler}>Hozzáadás</button>
-        </div>
+        {canManageTravelers && (
+          <div className="assign-row">
+            <select value={newTraveler} onChange={e => setNewTraveler(e.target.value)}>
+              <option value="">Utazó hozzáadása</option>
+              {availableTravelers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <button className="btn btn-secondary btn-small" onClick={addTraveler}>Hozzáadás</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -202,16 +220,21 @@ const InviteUserModal = ({
   onClose,
   trips,
   onSent,
+  currentUser,
 }: {
   isOpen: boolean;
   onClose: () => void;
   trips: Trip[];
   onSent: () => void;
+  currentUser: User;
 }) => {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('traveler');
   const [tripId, setTripId] = useState<string>('');
   const [invites, setInvites] = useState<any[]>([]);
+
+  const isOrganizer = currentUser.role === 'organizer';
+  const availableTrips = isOrganizer ? trips.filter(t => t.organizerIds.includes(currentUser.id)) : trips;
 
   const loadInvites = () => {
     fetch(`${API_BASE}/api/invitations`).then(res => res.json()).then(setInvites);
@@ -220,6 +243,9 @@ const InviteUserModal = ({
   useEffect(() => {
     if (isOpen) {
       loadInvites();
+      if (isOrganizer) {
+        setRole('traveler');
+      }
     }
   }, [isOpen]);
 
@@ -230,7 +256,7 @@ const InviteUserModal = ({
     const res = await fetch(`${API_BASE}/api/invitations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, role, tripId: tripId || undefined })
+      body: JSON.stringify({ email, role: isOrganizer ? 'traveler' : role, tripId: tripId || undefined })
     });
     if (res.status === 409) {
       alert('Ehhez az e-mailhez már van meghívó. Küldje újra a Felhasználók oldalon.');
@@ -244,7 +270,9 @@ const InviteUserModal = ({
     onSent();
     loadInvites();
     onClose();
-    setEmail(''); setTripId(''); setRole('traveler');
+    setEmail('');
+    setTripId('');
+    setRole('traveler');
   };
 
   return (
@@ -256,18 +284,20 @@ const InviteUserModal = ({
             <label htmlFor="inviteEmail">E-mail</label>
             <input id="inviteEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
+          {!isOrganizer && (
+            <div className="form-group">
+              <label htmlFor="inviteRole">Szerep</label>
+              <select id="inviteRole" value={role} onChange={e => setRole(e.target.value as Role)}>
+                <option value="organizer">Szervező</option>
+                <option value="traveler">Utazó</option>
+              </select>
+            </div>
+          )}
           <div className="form-group">
-            <label htmlFor="inviteRole">Szerep</label>
-            <select id="inviteRole" value={role} onChange={e => setRole(e.target.value as Role)}>
-              <option value="organizer">Szervező</option>
-              <option value="traveler">Utazó</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label htmlFor="inviteTrip">Utazás (opcionális)</label>
-            <select id="inviteTrip" value={tripId} onChange={e => setTripId(e.target.value)}>
-              <option value="">Nincs</option>
-              {trips.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            <label htmlFor="inviteTrip">Utazás{isOrganizer ? '' : ' (opcionális)'}</label>
+            <select id="inviteTrip" value={tripId} onChange={e => setTripId(e.target.value)} required={isOrganizer}>
+              {!isOrganizer && <option value="">Nincs</option>}
+              {availableTrips.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           <div className="modal-actions">
@@ -287,7 +317,7 @@ const InviteUserModal = ({
                   <tr key={inv._id}>
                     <td>{inv.email}</td>
                     <td>{inv.role}</td>
-                    <td>{trips.find(t => t.id === inv.tripId)?.name || '-'}</td>
+                    <td>{availableTrips.find(t => t.id === inv.tripId)?.name || '-'}</td>
                     <td>{new Date(inv.expiresAt).toLocaleDateString()}</td>
                   </tr>
                 ))}
@@ -1271,6 +1301,7 @@ const Sidebar = ({
     onShowUsers,
     mainView,
     userRole,
+    userId,
     isOpen
 }: {
     trips: Trip[],
@@ -1282,20 +1313,10 @@ const Sidebar = ({
     onShowUsers: () => void,
     mainView: 'trips' | 'users',
     userRole: Role,
+    userId: string,
     isOpen: boolean
 }) => {
-    
-    const tripNavItems: { key: TripView; label: string }[] = [
-        { key: 'summary', label: 'Összegzés' },
-        { key: 'itinerary', label: 'Útiterv' },
-        { key: 'financials', label: 'Pénzügyek' },
-        { key: 'personalData', label: 'Személyes adatok' },
-        { key: 'documents', label: 'Dokumentumok' },
-    ];
-    if (userRole === 'admin' || userRole === 'organizer') {
-        tripNavItems.push({ key: 'users', label: 'Felhasználók' });
-    }
-    
+
     return (
         <aside className={`sidebar ${isOpen ? 'is-open' : ''}`}>
             <nav>
@@ -1306,28 +1327,40 @@ const Sidebar = ({
                         </a>
                         {mainView === 'trips' && (
                           <ul className="trip-list">
-                            {trips.map(trip => (
-                              <li key={trip.id} className={`trip-item ${trip.id === selectedTripId ? 'active' : ''}`}>
-                                <a href="#" onClick={(e) => { e.preventDefault(); onSelectTrip(trip.id); }}>
-                                  {trip.name}
-                                </a>
-                                {trip.id === selectedTripId && (
-                                  <ul className="trip-submenu">
-                                    {tripNavItems.map(item => (
-                                      <li key={item.key}>
-                                        <a
-                                          href="#"
-                                          onClick={(e) => { e.preventDefault(); onSelectView(item.key); }}
-                                          className={activeView === item.key ? 'active' : ''}
-                                        >
-                                          {item.label}
-                                        </a>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </li>
-                            ))}
+                            {trips.map(trip => {
+                              const tripNavItems: { key: TripView; label: string }[] = [
+                                { key: 'summary', label: 'Összegzés' },
+                                { key: 'itinerary', label: 'Útiterv' },
+                                { key: 'financials', label: 'Pénzügyek' },
+                                { key: 'personalData', label: 'Személyes adatok' },
+                                { key: 'documents', label: 'Dokumentumok' },
+                              ];
+                              if (userRole === 'admin' || (userRole === 'organizer' && trip.organizerIds.includes(userId))) {
+                                tripNavItems.push({ key: 'users', label: 'Felhasználók' });
+                              }
+                              return (
+                                <li key={trip.id} className={`trip-item ${trip.id === selectedTripId ? 'active' : ''}`}>
+                                  <a href="#" onClick={(e) => { e.preventDefault(); onSelectTrip(trip.id); }}>
+                                    {trip.name}
+                                  </a>
+                                  {trip.id === selectedTripId && (
+                                    <ul className="trip-submenu">
+                                      {tripNavItems.map(item => (
+                                        <li key={item.key}>
+                                          <a
+                                            href="#"
+                                            onClick={(e) => { e.preventDefault(); onSelectView(item.key); }}
+                                            className={activeView === item.key ? 'active' : ''}
+                                          >
+                                            {item.label}
+                                          </a>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </li>
+                              );
+                            })}
                           </ul>
                         )}
                     </li>
@@ -1394,7 +1427,9 @@ const Dashboard = ({
       case 'admin':
         return trips;
       case 'organizer':
-        return trips.filter((trip: Trip) => trip.organizerIds.includes(String(user.id)));
+        return trips.filter((trip: Trip) =>
+          trip.organizerIds.includes(String(user.id)) || trip.travelerIds.includes(String(user.id))
+        );
       case 'traveler':
         return trips.filter((trip: Trip) => trip.travelerIds.includes(String(user.id)));
       default:
@@ -1467,7 +1502,11 @@ const Dashboard = ({
             case 'itinerary': return <TripItinerary trip={selectedTrip} user={user} items={tripItineraryItems} onAddItem={onAddItineraryItem} onRemoveItem={onRemoveItineraryItem} />;
             case 'documents': return <TripDocuments trip={selectedTrip} user={user} documents={tripDocuments} onAddDocument={onAddDocument} users={allUsers} />;
             case 'personalData': return <TripPersonalData trip={selectedTrip} user={user} configs={tripPersonalDataConfigs} records={tripPersonalDataRecords} onUpdateRecord={onUpdatePersonalData} onToggleLock={onTogglePersonalDataLock} users={allUsers} />;
-            case 'users': return <TripUserManagement trip={selectedTrip} users={allUsers} onChange={() => { refreshTrips(); setUserRefresh(v => v + 1); }} />;
+            case 'users':
+              if (user.role !== 'admin' && !selectedTrip.organizerIds.includes(String(user.id))) {
+                return <p>Nincs jogosultsága a felhasználók kezeléséhez.</p>;
+              }
+              return <TripUserManagement trip={selectedTrip} users={allUsers} currentUser={user} onChange={() => { refreshTrips(); setUserRefresh(v => v + 1); }} />;
             default: return <h2>Válasszon nézetet</h2>;
         }
     }
@@ -1516,6 +1555,7 @@ const Dashboard = ({
             onShowUsers={handleShowUsers}
             mainView={mainView}
             userRole={user.role}
+            userId={String(user.id)}
             isOpen={isMobileSidebarOpen}
         />
         <div className="sidebar-overlay" onClick={() => setMobileSidebarOpen(false)}></div>
@@ -1544,6 +1584,7 @@ const Dashboard = ({
                 onClose={() => setInviteOpen(false)}
                 trips={trips}
                 onSent={() => setInviteRefresh(v => v + 1)}
+                currentUser={user}
             />
           )}
         </div>

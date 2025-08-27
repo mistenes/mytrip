@@ -308,6 +308,11 @@ app.post('/api/trips/:id/organizers', async (req, res) => {
 });
 
 app.delete('/api/trips/:id/organizers/:userId', async (req, res) => {
+  const trip = await Trip.findById(req.params.id);
+  if (!trip) return res.sendStatus(404);
+  if ((trip.organizerIds || []).length <= 1) {
+    return res.status(400).json({ message: 'Trip must retain at least one organizer' });
+  }
   await Trip.findByIdAndUpdate(req.params.id, { $pull: { organizerIds: req.params.userId } });
   res.sendStatus(204);
 });

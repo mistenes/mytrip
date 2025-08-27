@@ -195,6 +195,29 @@ html[data-theme='dark'] .login-box {
 .btn-danger:hover { background-color: #b02a37; }
 .btn-small { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
 
+/* Trip user management styling */
+.trip-user-management .assign-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  align-items: center;
+}
+
+.trip-user-management select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.trip-users-section ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.trip-users-section li {
+  margin-bottom: 0.25rem;
+}
+
 /* --- Dashboard Layout --- */
 .dashboard-layout {
   display: flex;
