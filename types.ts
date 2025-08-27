@@ -45,6 +45,7 @@ export interface PersonalDataFieldConfig {
   type: 'text' | 'date' | 'file';
   enabled?: boolean;
   locked?: boolean;
+  order?: number;
 }
 
 export interface PersonalDataRecord {

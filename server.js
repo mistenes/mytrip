@@ -4,6 +4,7 @@ import multer from 'multer';
 import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 // Using Brevo's REST API directly so no external SDK is required
 
 const __filename = fileURLToPath(import.meta.url);
@@ -46,7 +47,8 @@ const fieldConfigSchema = new mongoose.Schema({
   label: String,
   type: { type: String, enum: ['text', 'date', 'file'], default: 'text' },
   enabled: { type: Boolean, default: true },
-  locked: { type: Boolean, default: false }
+  locked: { type: Boolean, default: false },
+  order: { type: Number, default: 0 }
 }, { timestamps: true });
 
 const tripSchema = new mongoose.Schema({
@@ -90,6 +92,28 @@ async function ensureAdminUser() {
     email: 'admin@example.com'
   });
   console.log('Seeded admin user');
+}
+
+async function ensureDefaultFieldConfigs() {
+  const defaults = [
+    { field: 'firstName', label: 'First Name', type: 'text', locked: true, order: 1 },
+    { field: 'lastName', label: 'Last Name', type: 'text', locked: true, order: 2 },
+    { field: 'dateOfBirth', label: 'Date of Birth', type: 'date', locked: true, order: 3 },
+    { field: 'middleName', label: 'Middle Name', type: 'text', order: 4 },
+    { field: 'passportNumber', label: 'Passport Number', type: 'text', order: 5 },
+    { field: 'issueDate', label: 'Issue Date', type: 'date', order: 6 },
+    { field: 'issuingCountry', label: 'Issuing Country', type: 'text', order: 7 },
+    { field: 'expiryDate', label: 'Expiry Date', type: 'date', order: 8 },
+    { field: 'nationality', label: 'Nationality', type: 'text', order: 9 },
+    { field: 'sex', label: 'Sex', type: 'text', order: 10 },
+  ];
+  for (const def of defaults) {
+    await FieldConfig.findOneAndUpdate(
+      { field: def.field, tripId: 0 },
+      { ...def, tripId: 0 },
+      { upsert: true }
+    );
+  }
 }
 
 async function sendInvitationEmail(email, signupUrl) {
@@ -225,7 +249,12 @@ app.post('/api/register/:token', async (req, res) => {
     dateOfBirth,
     email: invitation.email,
     passwordHash,
-    role: invitation.role
+    role: invitation.role,
+    personalData: [
+      { field: 'firstName', value: firstName, locked: true },
+      { field: 'lastName', value: lastName, locked: true },
+      { field: 'dateOfBirth', value: dateOfBirth, locked: true }
+    ]
   });
   await user.save();
 
@@ -329,15 +358,15 @@ app.delete('/api/trips/:id/travelers/:userId', async (req, res) => {
 });
 
 app.get('/api/field-config', async (_req, res) => {
-  const configs = await FieldConfig.find();
+  const configs = await FieldConfig.find().sort({ order: 1 });
   res.json(configs);
 });
 
 app.put('/api/field-config/:field', async (req, res) => {
-  const { label, type, enabled, locked, tripId } = req.body;
+  const { label, type, enabled, locked, tripId, order } = req.body;
   const config = await FieldConfig.findOneAndUpdate(
     { field: req.params.field, tripId },
-    { field: req.params.field, label, type, enabled, locked, tripId },
+    { field: req.params.field, label, type, enabled, locked, tripId, order },
     { new: true, upsert: true }
   );
   res.json(config);
@@ -364,6 +393,12 @@ app.put('/api/users/:id/personal-data', async (req, res) => {
   res.json(user);
 });
 
+app.get('/api/users/:id/personal-data', async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) return res.sendStatus(404);
+  res.json(user.personalData);
+});
+
 app.put('/api/users/:id/personal-data/:field/lock', async (req, res) => {
   const { locked } = req.body;
   const user = await User.findById(req.params.id);
@@ -383,6 +418,34 @@ app.post('/api/users/:id/passport-photo', upload.single('photo'), async (req, re
   res.json({ path: req.file.path });
 });
 
+app.post('/api/users/:id/personal-data/:field/file', upload.single('file'), async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user || !req.file) return res.sendStatus(400);
+  const config = await FieldConfig.findOne({ field: req.params.field });
+  if (!config || config.type !== 'file') return res.status(400).json({ message: 'Invalid field' });
+  let entry = user.personalData.find(e => e.field === req.params.field);
+  if (entry) {
+    entry.value = req.file.path;
+  } else {
+    user.personalData.push({ field: req.params.field, value: req.file.path });
+  }
+  await user.save();
+  res.json({ path: req.file.path });
+});
+
+app.delete('/api/users/:id/personal-data/:field/file', async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) return res.sendStatus(404);
+  const entry = user.personalData.find(e => e.field === req.params.field);
+  if (!entry || !entry.value) return res.sendStatus(404);
+  try {
+    await fs.promises.unlink(entry.value);
+  } catch (_) {}
+  entry.value = '';
+  await user.save();
+  res.sendStatus(204);
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
@@ -391,6 +454,7 @@ async function start() {
   try {
     await mongoose.connect(process.env.MONGODB_URI ?? 'mongodb://localhost:27017/myTrip');
     await ensureAdminUser();
+    await ensureDefaultFieldConfigs();
     const port = process.env.PORT || 3001;
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);

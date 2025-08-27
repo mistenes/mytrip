@@ -72,8 +72,24 @@ const App = () => {
         label: c.label,
         type: c.type,
         enabled: c.enabled,
-        locked: c.locked
+        locked: c.locked,
+        order: c.order
       }))))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/users`)
+      .then(res => res.json())
+      .then(data => {
+        const records: PersonalDataRecord[] = [];
+        data.forEach((u: any) => {
+          (u.personalData || []).forEach((pd: any) => {
+            records.push({ userId: u._id, tripId: '', fieldId: pd.field, value: pd.value, isLocked: pd.locked });
+          });
+        });
+        setPersonalDataRecords(records);
+      })
       .catch(() => {});
   }, []);
   
@@ -117,6 +133,14 @@ const App = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ field: updatedRecord.fieldId, value: updatedRecord.value })
       }).catch(() => {});
+  };
+
+  const handleUpsertPersonalDataConfig = (config: PersonalDataFieldConfig) => {
+      setPersonalDataConfigs(prev => {
+          const idx = prev.findIndex(c => c.id === config.id);
+          const updated = idx > -1 ? [...prev.slice(0, idx), config, ...prev.slice(idx + 1)] : [...prev, config];
+          return [...updated].sort((a,b)=>(a.order||0)-(b.order||0));
+      });
   };
 
   const handleTogglePersonalDataLock = (userId: string, fieldId: string, tripId: string) => {
@@ -168,6 +192,7 @@ const App = () => {
       personalDataRecords={personalDataRecords}
       onUpdatePersonalData={handleUpdatePersonalData}
       onTogglePersonalDataLock={handleTogglePersonalDataLock}
+      onUpsertPersonalDataConfig={handleUpsertPersonalDataConfig}
       itineraryItems={itineraryItems}
       onAddItineraryItem={handleAddItineraryItem}
       onRemoveItineraryItem={handleRemoveItineraryItem}

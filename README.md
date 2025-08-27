@@ -25,17 +25,32 @@ If an account with username `admin` does not exist, setting `ADMIN_PASSWORD` see
 
 ## Personal data management
 
-Administrators can configure which personal data fields are collected and whether they are editable. Use the following API endpoints:
+Administrators can configure which personal data fields are collected, arrange their order, and decide if they are editable. The server seeds a basic set of fields on startup:
 
-- `GET /api/field-config` – list available fields
-- `PUT /api/field-config/:field` – create or update a field (expects `label`, `type`, `enabled`, `locked`)
+1. First Name *(locked)*
+2. Last Name *(locked)*
+3. Date of Birth *(locked)*
+4. Middle Name
+5. Passport Number
+6. Issue Date
+7. Issuing Country
+8. Expiry Date
+9. Nationality
+10. Sex
+
+Use the following API endpoints:
+
+- `GET /api/field-config` – list available fields in display order
+- `PUT /api/field-config/:field` – create or update a field (supports `label`, `type`, `enabled`, `locked`, `order`, `tripId`)
 - `PUT /api/users/:id/personal-data` – update a user's field value (respects field configuration and per-user lock)
+- `GET /api/users/:id/personal-data` – retrieve a user's current personal data entries
 - `PUT /api/users/:id/personal-data/:field/lock` – lock or unlock a field for a specific user
-- `POST /api/users/:id/passport-photo` – upload a passport photo (`photo` form field). Uploaded files are served from `/uploads`.
+- `POST /api/users/:id/personal-data/:field/file` – upload a file for a field (`file` form field)
+- `DELETE /api/users/:id/personal-data/:field/file` – remove an uploaded file
 
-Add `uploads/` to `.gitignore` so passport photos aren't committed to source control.
+Uploaded files are served from `/uploads`, and the `uploads/` directory is ignored by Git.
 
-Organizers or administrators can choose a traveler on a trip's personal data page to view their details and can print or save the displayed information as a PDF.
+Organizers or administrators can choose a traveler on a trip's personal data page to view their details, print them, save them as PDF, manage field definitions, and remove uploaded files.
 
 ## Invitations
 
