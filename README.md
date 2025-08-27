@@ -42,7 +42,7 @@ Endpoints:
 - `POST /api/invitations` – body: `{ email, role, tripId }`. Generates a token, emails the signup link, and stores expiration.
 - `GET /api/invitations` – list active invitations that haven't expired or been used.
 - `GET /api/invitations/:token` – verify that an invitation token is still valid.
-- `POST /api/register/:token` – body: `{ firstName, lastName, password, verifyPassword }`. Creates the user with English-only names, assigns them to the invitation's trip, and marks the token as used.
+- `POST /api/register/:token` – body: `{ firstName, lastName, username, dateOfBirth, password, verifyPassword }`. Creates the user with English-only names, records their username and birth date, assigns them to the invitation's trip, and marks the token as used.
 
 Set the following environment variables to enable email delivery:
 

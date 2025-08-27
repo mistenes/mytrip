@@ -6,6 +6,8 @@ const SignupPage = () => {
   const token = params.get('token');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [password, setPassword] = useState('');
   const [verifyPassword, setVerifyPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,10 +28,11 @@ const SignupPage = () => {
     const res = await fetch(`${API_BASE}/api/register/${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firstName, lastName, password, verifyPassword })
+      body: JSON.stringify({ firstName, lastName, username, dateOfBirth, password, verifyPassword })
     });
     if (res.ok) {
       setSuccess(true);
+      window.location.href = '/';
     } else {
       const data = await res.json().catch(() => ({}));
       setError(data.message || 'Registration failed');
@@ -59,6 +62,14 @@ const SignupPage = () => {
           <div className="form-group">
             <label htmlFor="lastName">Last Name</label>
             <input id="lastName" value={lastName} onChange={e => setLastName(e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label htmlFor="username">Username</label>
+            <input id="username" value={username} onChange={e => setUsername(e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label htmlFor="dateOfBirth">Date of Birth</label>
+            <input id="dateOfBirth" type="date" value={dateOfBirth} onChange={e => setDateOfBirth(e.target.value)} required />
           </div>
           <div className="form-group">
             <label htmlFor="password">Password</label>

@@ -32,6 +32,8 @@ const userSchema = new mongoose.Schema({
   firstName: String,
   lastName: String,
   name: String, // convenience full name
+  username: String,
+  dateOfBirth: String,
   email: String,
   passwordHash: String,
   role: String,
@@ -152,10 +154,18 @@ app.post('/api/register/:token', async (req, res) => {
     return res.status(400).json({ message: 'Invalid or expired invitation' });
   }
 
-  const { firstName, lastName, password, verifyPassword } = req.body;
+  const { firstName, lastName, username, dateOfBirth, password, verifyPassword } = req.body;
   const nameRegex = /^[A-Za-z]+$/;
   if (!nameRegex.test(firstName) || !nameRegex.test(lastName)) {
     return res.status(400).json({ message: 'Names must use English letters only' });
+  }
+  const usernameRegex = /^[A-Za-z0-9_]+$/;
+  if (!username || !usernameRegex.test(username)) {
+    return res.status(400).json({ message: 'Username must contain only English letters, numbers, or underscores' });
+  }
+  const dobRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateOfBirth || !dobRegex.test(dateOfBirth)) {
+    return res.status(400).json({ message: 'Date of birth must be in YYYY-MM-DD format' });
   }
   if (!password || password !== verifyPassword || password.length < 8) {
     return res.status(400).json({ message: 'Passwords must match and be at least 8 characters' });
@@ -166,6 +176,8 @@ app.post('/api/register/:token', async (req, res) => {
     firstName,
     lastName,
     name: `${firstName} ${lastName}`,
+    username,
+    dateOfBirth,
     email: invitation.email,
     passwordHash,
     role: invitation.role
