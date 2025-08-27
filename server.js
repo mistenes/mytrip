@@ -109,10 +109,10 @@ async function sendInvitationEmail(email, signupUrl) {
       body: JSON.stringify({
         sender: {
           email: senderEmail,
-          name: process.env.BREVO_SENDER_NAME || 'MyTrip'
+          name: process.env.BREVO_SENDER_NAME || 'myTrip'
         },
         to: [{ email }],
-        subject: 'Invitation to MyTrip',
+        subject: 'Invitation to myTrip',
         htmlContent: `<p>You have been invited to join a trip. Sign up here: <a href="${signupUrl}">${signupUrl}</a></p>`
       })
     });
@@ -134,7 +134,7 @@ const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
 app.get('/health', (_req, res) => {
-  res.type('text/plain').send('mytrip server: OK');
+  res.type('text/plain').send('myTrip server: OK');
 });
 
 app.post('/api/invitations', async (req, res) => {
@@ -384,7 +384,7 @@ app.get('*', (_req, res) => {
 
 async function start() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI ?? 'mongodb://localhost:27017/mytrip');
+    await mongoose.connect(process.env.MONGODB_URI ?? 'mongodb://localhost:27017/myTrip');
     await ensureAdminUser();
     const port = process.env.PORT || 3001;
     app.listen(port, () => {

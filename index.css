@@ -305,6 +305,39 @@ html[data-theme='dark'] .login-box {
   gap: 0.5rem;
 }
 
+.user-management .user-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.user-management .user-tile {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  width: 150px;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 2px 4px var(--color-shadow);
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.user-management .user-tile.selected {
+  border-color: var(--color-primary);
+  background-color: var(--color-surface-secondary);
+}
+
+.user-management .user-name {
+  font-weight: 600;
+}
+
+.user-management .user-role {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
 .app-header {
   display: flex;
   justify-content: space-between;

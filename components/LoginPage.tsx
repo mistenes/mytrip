@@ -31,7 +31,7 @@ const LoginPage = ({ onLogin }: { onLogin: (user: User) => void }) => {
   return (
     <div className="login-container">
       <div className="login-box">
-        <h1>Mytrip</h1>
+        <h1>myTrip</h1>
         <p>Kérjük, jelentkezzen be a folytatáshoz</p>
         <form onSubmit={handleLoginSubmit}>
           <div className="form-group">

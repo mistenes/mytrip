@@ -31,7 +31,7 @@ const Header = ({ user, onLogout, onToggleSidebar, showHamburger, theme, onTheme
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
          )}
-         <h1 className="logo">Mytrip</h1>
+         <h1 className="logo">myTrip</h1>
     </div>
     <div className="user-info">
       <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
@@ -364,33 +364,36 @@ const UserManagement = ({ onInvite, trips, users, refreshKey, onUsersChanged }: 
         <button onClick={onInvite} className="btn btn-secondary">Meghívó küldése</button>
       </div>
 
-      <h3>Szervezők</h3>
+      <h3>Szervezők ({organizers.length})</h3>
       {organizers.length > 0 ? (
-        <table className="user-table">
-          <thead><tr><th>Név</th></tr></thead>
-          <tbody>
-            {organizers.map((u: any) => (
-              <tr key={u._id} onClick={() => setSelectedUser(u)}>
-                <td>{u.name}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="user-tiles">
+          {organizers.map((u: any) => (
+            <div
+              key={u._id}
+              className={`user-tile${selectedUser?._id === u._id ? ' selected' : ''}`}
+              onClick={() => setSelectedUser(u)}
+            >
+              <div className="user-name">{u.name}</div>
+              <div className="user-role">Szervező</div>
+            </div>
+          ))}
+        </div>
       ) : <p>Nincsenek szervezők.</p>}
 
-      <h3>Egyéb felhasználók</h3>
+      <h3>Egyéb felhasználók ({others.length})</h3>
       {others.length > 0 ? (
-        <table className="user-table">
-          <thead><tr><th>Név</th><th>Szerep</th></tr></thead>
-          <tbody>
-            {others.map((u: any) => (
-              <tr key={u._id} onClick={() => setSelectedUser(u)}>
-                <td>{u.name}</td>
-                <td>{u.role}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="user-tiles">
+          {others.map((u: any) => (
+            <div
+              key={u._id}
+              className={`user-tile${selectedUser?._id === u._id ? ' selected' : ''}`}
+              onClick={() => setSelectedUser(u)}
+            >
+              <div className="user-name">{u.name}</div>
+              <div className="user-role">{u.role}</div>
+            </div>
+          ))}
+        </div>
       ) : <p className="no-users">Nincsenek felhasználók.</p>}
 
       {selectedUser && (

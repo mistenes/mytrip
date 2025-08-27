@@ -18,7 +18,7 @@ This contains everything you need to run your app locally.
 3. Start the API server (requires MongoDB):
    `npm run server`
 
-The server uses the `MONGODB_URI` environment variable and defaults to `mongodb://localhost:27017/mytrip`.
+The server uses the `MONGODB_URI` environment variable and defaults to `mongodb://localhost:27017/myTrip`.
 When deployed, the Express server serves `index.html` at the root path so the frontend and backend can share the same host. A health check is available at `/health`.
 
 If an account with username `admin` does not exist, setting `ADMIN_PASSWORD` seeds one on startup. The password is hashed and the account must change its password on first login.
