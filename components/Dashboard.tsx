@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { USERS } from "../mockData";
 import { API_BASE } from "../api";
 import { User, Trip, FinancialRecord, Document, PersonalDataFieldConfig, PersonalDataRecord, ItineraryItem, Role, TripView, Theme } from "../types";
 
@@ -76,11 +75,11 @@ const CreateTripModal = ({
     const tripRes = await fetch(`${API_BASE}/api/trips`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, startDate, endDate, organizerId, travelerIds: [] })
+      body: JSON.stringify({ name, startDate, endDate, organizerIds: [organizerId], travelerIds: [] })
     });
     const trip = await tripRes.json();
     const selectedOrganizer = organizers.find(o => o._id === organizerId);
-    onCreated({ id: trip._id, name: trip.name, startDate: trip.startDate, endDate: trip.endDate, organizerId: organizerId, organizerName: selectedOrganizer?.name, travelerIds: trip.travelerIds || [] });
+    onCreated({ id: trip._id, name: trip.name, startDate: trip.startDate, endDate: trip.endDate, organizerIds: [organizerId], organizerNames: selectedOrganizer ? [selectedOrganizer.name] : [], travelerIds: trip.travelerIds || [] });
     onClose();
     setName(''); setStartDate(''); setEndDate(''); setOrganizerId('');
   };
@@ -116,6 +115,83 @@ const CreateTripModal = ({
             <button type="submit" className="btn btn-primary">Létrehozás</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+};
+
+const TripUserManagement = ({ trip, users, onChange }: { trip: Trip; users: User[]; onChange: () => void }) => {
+  const organizers = users.filter(u => trip.organizerIds.includes(u.id));
+  const travelers = users.filter(u => trip.travelerIds.includes(u.id));
+  const availableOrganizers = users.filter(u => u.role === 'organizer' && !trip.organizerIds.includes(u.id));
+  const availableTravelers = users.filter(u => u.role === 'traveler' && !trip.travelerIds.includes(u.id));
+  const [newOrganizer, setNewOrganizer] = useState('');
+  const [newTraveler, setNewTraveler] = useState('');
+
+  const addOrganizer = async () => {
+    if (!newOrganizer) return;
+    await fetch(`${API_BASE}/api/trips/${trip.id}/organizers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: newOrganizer })
+    });
+    setNewOrganizer('');
+    onChange();
+  };
+
+  const removeOrganizer = async (id: string) => {
+    await fetch(`${API_BASE}/api/trips/${trip.id}/organizers/${id}`, { method: 'DELETE' });
+    onChange();
+  };
+
+  const addTraveler = async () => {
+    if (!newTraveler) return;
+    await fetch(`${API_BASE}/api/trips/${trip.id}/travelers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: newTraveler })
+    });
+    setNewTraveler('');
+    onChange();
+  };
+
+  const removeTraveler = async (id: string) => {
+    await fetch(`${API_BASE}/api/trips/${trip.id}/travelers/${id}`, { method: 'DELETE' });
+    onChange();
+  };
+
+  return (
+    <div className="trip-user-management">
+      <h2>Felhasználók: {trip.name}</h2>
+      <div className="trip-users-section">
+        <h3>Szervezők</h3>
+        <ul>
+          {organizers.map(o => (
+            <li key={o.id}>{o.name} <button className="btn btn-danger btn-small" onClick={() => removeOrganizer(o.id)}>Eltávolítás</button></li>
+          ))}
+        </ul>
+        <div className="assign-row">
+          <select value={newOrganizer} onChange={e => setNewOrganizer(e.target.value)}>
+            <option value="">Szervező hozzáadása</option>
+            {availableOrganizers.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+          <button className="btn btn-secondary btn-small" onClick={addOrganizer}>Hozzáadás</button>
+        </div>
+      </div>
+      <div className="trip-users-section">
+        <h3>Utazók</h3>
+        <ul>
+          {travelers.map(t => (
+            <li key={t.id}>{t.name} <button className="btn btn-danger btn-small" onClick={() => removeTraveler(t.id)}>Eltávolítás</button></li>
+          ))}
+        </ul>
+        <div className="assign-row">
+          <select value={newTraveler} onChange={e => setNewTraveler(e.target.value)}>
+            <option value="">Utazó hozzáadása</option>
+            {availableTravelers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <button className="btn btn-secondary btn-small" onClick={addTraveler}>Hozzáadás</button>
+        </div>
       </div>
     </div>
   );
@@ -224,13 +300,10 @@ const InviteUserModal = ({
   );
 };
 
-const UserManagement = ({ onInvite, trips, refreshKey }: { onInvite: () => void; trips: Trip[]; refreshKey: number; }) => {
-  const [users, setUsers] = useState<any[]>([]);
+const UserManagement = ({ onInvite, trips, users, refreshKey, onUsersChanged }: { onInvite: () => void; trips: Trip[]; users: any[]; refreshKey: number; onUsersChanged: () => void; }) => {
   const [invites, setInvites] = useState<any[]>([]);
-
-  useEffect(() => {
-    fetch(`${API_BASE}/api/users`).then(res => res.json()).then(setUsers);
-  }, []);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [assignTripId, setAssignTripId] = useState('');
 
   const loadInvites = () => {
     fetch(`${API_BASE}/api/invitations`).then(res => res.json()).then(setInvites);
@@ -245,9 +318,43 @@ const UserManagement = ({ onInvite, trips, refreshKey }: { onInvite: () => void;
     loadInvites();
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteInvite = async (id: string) => {
+    if (!window.confirm('Biztosan törli a meghívót?')) return;
     await fetch(`${API_BASE}/api/invitations/${id}`, { method: 'DELETE' });
     loadInvites();
+  };
+
+  const organizers = users.filter(u => u.role === 'organizer');
+  const others = users.filter(u => u.role !== 'organizer');
+
+  const userTrips = selectedUser ? trips.filter(t => t.organizerIds.includes(selectedUser._id) || t.travelerIds.includes(selectedUser._id)) : [];
+
+  const handleAssignOrganizer = async () => {
+    if (!selectedUser || !assignTripId) return;
+    await fetch(`${API_BASE}/api/trips/${assignTripId}/organizers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: selectedUser._id })
+    });
+    setAssignTripId('');
+    onUsersChanged();
+  };
+
+  const handleRemoveFromTrip = async (tripId: string) => {
+    if (!selectedUser) return;
+    const path = selectedUser.role === 'organizer'
+      ? `/api/trips/${tripId}/organizers/${selectedUser._id}`
+      : `/api/trips/${tripId}/travelers/${selectedUser._id}`;
+    await fetch(`${API_BASE}${path}`, { method: 'DELETE' });
+    onUsersChanged();
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    if (!window.confirm('Biztosan törli a felhasználót?')) return;
+    await fetch(`${API_BASE}/api/users/${selectedUser._id}`, { method: 'DELETE' });
+    setSelectedUser(null);
+    onUsersChanged();
   };
 
   return (
@@ -256,22 +363,59 @@ const UserManagement = ({ onInvite, trips, refreshKey }: { onInvite: () => void;
         <h2>Felhasználók</h2>
         <button onClick={onInvite} className="btn btn-secondary">Meghívó küldése</button>
       </div>
-      {users.length > 0 ? (
+
+      <h3>Szervezők</h3>
+      {organizers.length > 0 ? (
         <table className="user-table">
-          <thead>
-            <tr><th>Név</th><th>Szerep</th></tr>
-          </thead>
+          <thead><tr><th>Név</th></tr></thead>
           <tbody>
-            {users.map((u: any) => (
-              <tr key={u._id}>
+            {organizers.map((u: any) => (
+              <tr key={u._id} onClick={() => setSelectedUser(u)}>
+                <td>{u.name}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <p>Nincsenek szervezők.</p>}
+
+      <h3>Egyéb felhasználók</h3>
+      {others.length > 0 ? (
+        <table className="user-table">
+          <thead><tr><th>Név</th><th>Szerep</th></tr></thead>
+          <tbody>
+            {others.map((u: any) => (
+              <tr key={u._id} onClick={() => setSelectedUser(u)}>
                 <td>{u.name}</td>
                 <td>{u.role}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      ) : (
-        <p className="no-users">Nincsenek felhasználók.</p>
+      ) : <p className="no-users">Nincsenek felhasználók.</p>}
+
+      {selectedUser && (
+        <div className="user-detail">
+          <h3>{selectedUser.name}</h3>
+          {userTrips.length > 0 ? (
+            <ul>
+              {userTrips.map(t => (
+                <li key={t.id}>{t.name} <button className="btn btn-danger btn-small" onClick={() => handleRemoveFromTrip(t.id)}>Eltávolítás</button></li>
+              ))}
+            </ul>
+          ) : <p>Nincs hozzárendelve utazáshoz.</p>}
+          {selectedUser.role === 'organizer' && (
+            <div className="assign-trip">
+              <select value={assignTripId} onChange={e => setAssignTripId(e.target.value)}>
+                <option value="">Utazás hozzárendelése</option>
+                {trips.filter(t => !t.organizerIds.includes(selectedUser._id)).map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              <button className="btn btn-secondary btn-small" onClick={handleAssignOrganizer}>Hozzárendelés</button>
+            </div>
+          )}
+          <button className="btn btn-danger" onClick={handleDeleteUser}>Felhasználó törlése</button>
+        </div>
       )}
 
       {invites.length > 0 && (
@@ -291,7 +435,7 @@ const UserManagement = ({ onInvite, trips, refreshKey }: { onInvite: () => void;
                   <td>
                     <div className="invite-actions">
                       <button className="btn btn-secondary btn-small" onClick={() => handleResend(inv._id)}>Újraküldés</button>
-                      <button className="btn btn-danger btn-small" onClick={() => handleDelete(inv._id)}>Törlés</button>
+                      <button className="btn btn-danger btn-small" onClick={() => handleDeleteInvite(inv._id)}>Törlés</button>
                     </div>
                   </td>
                 </tr>
@@ -316,7 +460,7 @@ const TripCard = ({ trip, onSelectTrip }: { trip: Trip; onSelectTrip: () => void
                     </div>
                     <div className="detail-item">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                        <span><strong>Szervező:</strong> {trip.organizerName || 'Ismeretlen'}</span>
+                        <span><strong>Szervező:</strong> {trip.organizerNames?.join(', ') || 'Ismeretlen'}</span>
                     </div>
                     <div className="detail-item">
                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -336,18 +480,12 @@ const TripCard = ({ trip, onSelectTrip }: { trip: Trip; onSelectTrip: () => void
 // --- TRIP CONTENT COMPONENTS ---
 
 const TripSummary = ({ trip }: { trip: Trip }) => {
-    const travelers = USERS.filter(u => trip.travelerIds.includes(u.id));
     return (
         <div>
             <h2>Összegzés: {trip.name}</h2>
             <p><strong>Időpont:</strong> {trip.startDate} - {trip.endDate}</p>
-            <p><strong>Szervező:</strong> {trip.organizerName || 'Ismeretlen'}</p>
-            <h3>Résztvevők ({travelers.length})</h3>
-            {travelers.length > 0 ? (
-                <ul>
-                    {travelers.map(t => <li key={t.id}>{t.name}</li>)}
-                </ul>
-            ) : <p>Nincsenek utazók hozzárendelve.</p>}
+            <p><strong>Szervező:</strong> {trip.organizerNames?.join(', ') || 'Ismeretlen'}</p>
+            <p><strong>Utazók:</strong> {trip.travelerIds.length}</p>
         </div>
     );
 };
@@ -361,12 +499,12 @@ const TripFinancials = ({ trip, user, records, users, onAddRecord }: {
 }) => {
     
     const tripParticipants = useMemo(() => {
-        const participantIds = new Set([trip.organizerId, ...trip.travelerIds]);
+        const participantIds = new Set([...trip.organizerIds, ...trip.travelerIds]);
         return users.filter(u => participantIds.has(u.id));
     }, [trip, users]);
 
     const balances = useMemo(() => {
-        const userBalances = new Map<number, number>();
+        const userBalances = new Map<string, number>();
         tripParticipants.forEach(p => userBalances.set(p.id, 0));
         records.forEach(r => {
             if (userBalances.has(r.userId)) {
@@ -849,20 +987,21 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
     );
 };
 
-const TripDocuments = ({ trip, user, documents, onAddDocument }: { 
-    trip: Trip; 
+const TripDocuments = ({ trip, user, documents, onAddDocument, users }: {
+    trip: Trip;
     user: User;
     documents: Document[];
     onAddDocument: (doc: Omit<Document, 'id'>) => void;
+    users: User[];
 }) => {
     const [isUploadModalOpen, setUploadModalOpen] = useState(false);
     type SortableKeys = 'name' | 'category' | 'uploadDate';
     const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' } | null>({ key: 'uploadDate', direction: 'desc' });
     
     const tripParticipants = useMemo(() => {
-        const participantIds = new Set([trip.organizerId, ...trip.travelerIds]);
-        return USERS.filter(u => participantIds.has(u.id));
-    }, [trip]);
+        const participantIds = new Set([...trip.organizerIds, ...trip.travelerIds]);
+        return users.filter(u => participantIds.has(u.id));
+    }, [trip, users]);
 
     const handleUpload = (newDocData: Omit<Document, 'id' | 'tripId' | 'uploadDate' | 'fileUrl'>) => {
         onAddDocument({
@@ -959,7 +1098,7 @@ const TripDocuments = ({ trip, user, documents, onAddDocument }: {
                         {sortedDocuments.map(doc => {
                             let visibleToText: string;
                             if (Array.isArray(doc.visibleTo)) {
-                                visibleToText = USERS.filter(u => doc.visibleTo.includes(u.id)).map(u => u.name).join(', ');
+                                visibleToText = users.filter(u => doc.visibleTo.includes(u.id)).map(u => u.name).join(', ');
                             } else {
                                 visibleToText = 'Mindenki';
                             }
@@ -986,19 +1125,20 @@ const TripDocuments = ({ trip, user, documents, onAddDocument }: {
     );
 };
 
-const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onToggleLock }: {
+const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onToggleLock, users }: {
     trip: Trip;
     user: User;
     records: PersonalDataRecord[];
     configs: PersonalDataFieldConfig[];
     onUpdateRecord: (record: Omit<PersonalDataRecord, 'isLocked'>) => void;
     onToggleLock: (userId: string, fieldId: string, tripId: string) => void;
+    users: User[];
 }) => {
 
     const tripParticipants = useMemo(() => {
         const participantIds = new Set(trip.travelerIds);
-        return USERS.filter(u => participantIds.has(u.id));
-    }, [trip]);
+        return users.filter(u => participantIds.has(u.id));
+    }, [trip, users]);
 
     // Traveler View
     if (user.role === 'traveler') {
@@ -1149,6 +1289,9 @@ const Sidebar = ({
         { key: 'personalData', label: 'Személyes adatok' },
         { key: 'documents', label: 'Dokumentumok' },
     ];
+    if (userRole === 'admin' || userRole === 'organizer') {
+        tripNavItems.push({ key: 'users', label: 'Felhasználók' });
+    }
     
     return (
         <aside className={`sidebar ${isOpen ? 'is-open' : ''}`}>
@@ -1200,16 +1343,17 @@ const Sidebar = ({
 
 
 const Dashboard = ({
-    user, trips, onLogout, onCreateTrip,
+    user, trips, refreshTrips, onLogout, onCreateTrip,
     financialRecords, onAddFinancialRecord,
     documents, onAddDocument,
     personalDataConfigs, personalDataRecords, onUpdatePersonalData, onTogglePersonalDataLock,
     itineraryItems, onAddItineraryItem, onRemoveItineraryItem,
     theme, onThemeChange
 }: {
-    user: User, 
-    trips: Trip[], 
-    onLogout: () => void, 
+    user: User,
+    trips: Trip[],
+    refreshTrips: () => void,
+    onLogout: () => void,
     onCreateTrip: (trip: Trip) => void,
     financialRecords: FinancialRecord[],
     onAddFinancialRecord: (record: Omit<FinancialRecord, 'id'>) => void,
@@ -1232,13 +1376,22 @@ const Dashboard = ({
   const [mainView, setMainView] = useState<'trips' | 'users'>('trips');
   const [activeTripView, setActiveTripView] = useState<TripView>('summary');
   const [isMobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [userRefresh, setUserRefresh] = useState(0);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/users`)
+      .then(res => res.json())
+      .then(data => setAllUsers(data.map((u: any) => ({ id: u._id, name: u.name, role: u.role, _id: u._id }))))
+      .catch(() => {});
+  }, [userRefresh]);
     
   const visibleTrips = useMemo<Trip[]>(() => {
     switch(user.role) {
       case 'admin':
         return trips;
       case 'organizer':
-        return trips.filter((trip: Trip) => trip.organizerId === String(user.id));
+        return trips.filter((trip: Trip) => trip.organizerIds.includes(String(user.id)));
       case 'traveler':
         return trips.filter((trip: Trip) => trip.travelerIds.includes(String(user.id)));
       default:
@@ -1301,16 +1454,17 @@ const Dashboard = ({
 
   const renderContent = () => {
     if (mainView === 'users') {
-        return <UserManagement onInvite={() => setInviteOpen(true)} trips={trips} refreshKey={inviteRefresh} />;
+        return <UserManagement onInvite={() => setInviteOpen(true)} trips={trips} users={allUsers} refreshKey={inviteRefresh} onUsersChanged={() => { setUserRefresh(v => v + 1); refreshTrips(); }} />;
     }
 
     if (selectedTrip) {
         switch (activeTripView) {
             case 'summary': return <TripSummary trip={selectedTrip} />;
-            case 'financials': return <TripFinancials trip={selectedTrip} user={user} records={tripFinancialRecords} users={USERS} onAddRecord={onAddFinancialRecord} />;
+            case 'financials': return <TripFinancials trip={selectedTrip} user={user} records={tripFinancialRecords} users={allUsers} onAddRecord={onAddFinancialRecord} />;
             case 'itinerary': return <TripItinerary trip={selectedTrip} user={user} items={tripItineraryItems} onAddItem={onAddItineraryItem} onRemoveItem={onRemoveItineraryItem} />;
-            case 'documents': return <TripDocuments trip={selectedTrip} user={user} documents={tripDocuments} onAddDocument={onAddDocument} />;
-            case 'personalData': return <TripPersonalData trip={selectedTrip} user={user} configs={tripPersonalDataConfigs} records={tripPersonalDataRecords} onUpdateRecord={onUpdatePersonalData} onToggleLock={onTogglePersonalDataLock} />;
+            case 'documents': return <TripDocuments trip={selectedTrip} user={user} documents={tripDocuments} onAddDocument={onAddDocument} users={allUsers} />;
+            case 'personalData': return <TripPersonalData trip={selectedTrip} user={user} configs={tripPersonalDataConfigs} records={tripPersonalDataRecords} onUpdateRecord={onUpdatePersonalData} onToggleLock={onTogglePersonalDataLock} users={allUsers} />;
+            case 'users': return <TripUserManagement trip={selectedTrip} users={allUsers} onChange={() => { refreshTrips(); setUserRefresh(v => v + 1); }} />;
             default: return <h2>Válasszon nézetet</h2>;
         }
     }

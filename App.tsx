@@ -14,8 +14,7 @@ const App = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [trips, setTrips] = useState<Trip[]>(INITIAL_TRIPS);
 
-  // Load trips from backend MongoDB if available
-  useEffect(() => {
+  const refreshTrips = () => {
     fetch(`${API_BASE}/api/trips`)
       .then(res => res.json())
       .then(data => setTrips(data.map((t: any) => ({
@@ -23,10 +22,15 @@ const App = () => {
         name: t.name,
         startDate: t.startDate,
         endDate: t.endDate,
-        organizerId: t.organizerId,
+        organizerIds: t.organizerIds || [],
+        organizerNames: t.organizerNames || [],
         travelerIds: t.travelerIds || []
       }))))
       .catch(err => console.error('Failed to fetch trips', err));
+  };
+
+  useEffect(() => {
+    refreshTrips();
   }, []);
   const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>(INITIAL_FINANCIAL_RECORDS);
   const [documents, setDocuments] = useState<Document[]>(INITIAL_DOCUMENTS);
@@ -153,6 +157,7 @@ const App = () => {
     <Dashboard
       user={currentUser}
       trips={trips}
+      refreshTrips={refreshTrips}
       onLogout={handleLogout}
       onCreateTrip={handleCreateTrip}
       financialRecords={financialRecords}

@@ -1,5 +1,5 @@
 export type Role = 'admin' | 'organizer' | 'traveler';
-export type TripView = 'summary' | 'financials' | 'itinerary' | 'documents' | 'personalData';
+export type TripView = 'summary' | 'financials' | 'itinerary' | 'documents' | 'personalData' | 'users';
 export type Theme = 'light' | 'dark' | 'auto';
 
 export interface User {
@@ -14,8 +14,8 @@ export interface Trip {
   name: string;
   startDate: string;
   endDate: string;
-  organizerId?: string;
-  organizerName?: string;
+  organizerIds: string[];
+  organizerNames?: string[];
   travelerIds: string[];
 }
 

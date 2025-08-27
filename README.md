@@ -50,6 +50,16 @@ Endpoints:
 
 Attempting to invite an email address that already has a non-expired invite returns HTTP 409; resend the existing invitation instead of creating a new one.
 
+## Trip and user management
+
+Trips can have multiple organizers and travelers. Use these endpoints to manage participants and accounts:
+
+- `POST /api/trips/:id/organizers` – body: `{ userId }`. Adds an organizer to a trip.
+- `DELETE /api/trips/:id/organizers/:userId` – remove an organizer from a trip.
+- `POST /api/trips/:id/travelers` – body: `{ userId }`. Adds a traveler to a trip.
+- `DELETE /api/trips/:id/travelers/:userId` – remove a traveler from a trip.
+- `DELETE /api/users/:id` – delete a user and detach them from all trips.
+
 Set the following environment variables to enable email delivery:
 
 | Variable | Purpose |

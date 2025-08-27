@@ -53,7 +53,7 @@ const tripSchema = new mongoose.Schema({
   name: String,
   startDate: String,
   endDate: String,
-  organizerId: mongoose.Schema.Types.ObjectId,
+  organizerIds: [mongoose.Schema.Types.ObjectId],
   travelerIds: [mongoose.Schema.Types.ObjectId],
 }, { timestamps: true });
 
@@ -231,7 +231,7 @@ app.post('/api/register/:token', async (req, res) => {
 
   if (invitation.tripId) {
     if (invitation.role === 'organizer') {
-      await Trip.findByIdAndUpdate(invitation.tripId, { organizerId: user._id });
+      await Trip.findByIdAndUpdate(invitation.tripId, { $addToSet: { organizerIds: user._id } });
     } else if (invitation.role === 'traveler') {
       await Trip.findByIdAndUpdate(invitation.tripId, { $push: { travelerIds: user._id } });
     }
@@ -274,15 +274,53 @@ app.post('/api/users', async (req, res) => {
   res.status(201).json(user);
 });
 
+app.delete('/api/users/:id', async (req, res) => {
+  const id = req.params.id;
+  await Trip.updateMany({ organizerIds: id }, { $pull: { organizerIds: id } });
+  await Trip.updateMany({ travelerIds: id }, { $pull: { travelerIds: id } });
+  await User.findByIdAndDelete(id);
+  res.sendStatus(204);
+});
+
 app.get('/api/trips', async (_req, res) => {
-  const trips = await Trip.find();
-  res.json(trips);
+  const trips = await Trip.find().lean();
+  const allOrganizerIds = [...new Set(trips.flatMap(t => t.organizerIds.map(id => id.toString())) )];
+  const organizers = await User.find({ _id: { $in: allOrganizerIds } }, 'name');
+  const nameMap = Object.fromEntries(organizers.map(o => [o._id.toString(), o.name]));
+  const result = trips.map(t => ({
+    ...t,
+    organizerNames: t.organizerIds.map(id => nameMap[id.toString()] || '')
+  }));
+  res.json(result);
 });
 
 app.post('/api/trips', async (req, res) => {
-  const trip = new Trip(req.body);
+  const { name, startDate, endDate, organizerIds = [], travelerIds = [] } = req.body;
+  const trip = new Trip({ name, startDate, endDate, organizerIds, travelerIds });
   await trip.save();
   res.status(201).json(trip);
+});
+
+app.post('/api/trips/:id/organizers', async (req, res) => {
+  const { userId } = req.body;
+  await Trip.findByIdAndUpdate(req.params.id, { $addToSet: { organizerIds: userId } });
+  res.sendStatus(204);
+});
+
+app.delete('/api/trips/:id/organizers/:userId', async (req, res) => {
+  await Trip.findByIdAndUpdate(req.params.id, { $pull: { organizerIds: req.params.userId } });
+  res.sendStatus(204);
+});
+
+app.post('/api/trips/:id/travelers', async (req, res) => {
+  const { userId } = req.body;
+  await Trip.findByIdAndUpdate(req.params.id, { $addToSet: { travelerIds: userId } });
+  res.sendStatus(204);
+});
+
+app.delete('/api/trips/:id/travelers/:userId', async (req, res) => {
+  await Trip.findByIdAndUpdate(req.params.id, { $pull: { travelerIds: req.params.userId } });
+  res.sendStatus(204);
 });
 
 app.get('/api/field-config', async (_req, res) => {
