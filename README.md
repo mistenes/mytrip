@@ -21,6 +21,8 @@ This contains everything you need to run your app locally.
 The server uses the `MONGODB_URI` environment variable and defaults to `mongodb://localhost:27017/mytrip`.
 When deployed, the Express server serves `index.html` at the root path so the frontend and backend can share the same host. A health check is available at `/health`.
 
+If an account with username `admin` does not exist, setting `ADMIN_PASSWORD` seeds one on startup. The password is hashed and the account must change its password on first login.
+
 ## Personal data management
 
 Administrators can configure which personal data fields are collected and whether they are editable. Use the following API endpoints:
@@ -51,5 +53,6 @@ Set the following environment variables to enable email delivery:
 | `BREVO_API_KEY` | Brevo API key used to send the email |
 | `BREVO_SENDER_EMAIL` | The from-address for invitations |
 | `BREVO_SENDER_NAME` *(optional)* | Display name for the sender |
+| `ADMIN_PASSWORD` | Seed password for the initial admin user (username `admin`; must be changed on first login) |
 
 You can also configure `APP_URL` so links point to your frontend host.

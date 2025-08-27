@@ -3,9 +3,10 @@ export type TripView = 'summary' | 'financials' | 'itinerary' | 'documents' | 'p
 export type Theme = 'light' | 'dark' | 'auto';
 
 export interface User {
-  id: number;
+  id: string;
   name: string;
   role: Role;
+  mustChangePassword?: boolean;
 }
 
 export interface Trip {

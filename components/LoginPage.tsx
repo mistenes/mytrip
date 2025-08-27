@@ -1,23 +1,30 @@
 import React, { useState } from "react";
-import { Role } from "../types";
+import { User } from "../types";
+import { API_BASE } from "../api";
 
-const LoginPage = ({ onLogin }: { onLogin: (role: Role) => void }) => {
+const LoginPage = ({ onLogin }: { onLogin: (user: User) => void }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (username === 'admin' && password === 'adminpass') {
-      onLogin('admin');
-    } else if (username === 'organizer' && password === 'orgpass') {
-      onLogin('organizer');
-    } else if (username === 'traveler' && password === 'travelpass') {
-      onLogin('traveler');
-    } else {
-      setError('Érvénytelen felhasználónév vagy jelszó.');
+    try {
+      const res = await fetch(`${API_BASE}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ message: 'Érvénytelen felhasználónév vagy jelszó.' }));
+        setError(data.message || 'Érvénytelen felhasználónév vagy jelszó.');
+      } else {
+        const data = await res.json();
+        onLogin(data);
+      }
+    } catch {
+      setError('Bejelentkezés sikertelen.');
     }
   };
     
@@ -52,12 +59,7 @@ const LoginPage = ({ onLogin }: { onLogin: (role: Role) => void }) => {
           {error && <p className="error-message">{error}</p>}
           <button type="submit" className="btn btn-primary">Bejelentkezés</button>
         </form>
-         <div className="mock-credentials">
-            <h4>Demó belépési adatok:</h4>
-            <p><b>Admin:</b> admin / adminpass</p>
-            <p><b>Szervező:</b> organizer / orgpass</p>
-            <p><b>Utazó:</b> traveler / travelpass</p>
-        </div>
+         
       </div>
     </div>
   );

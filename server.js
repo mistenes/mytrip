@@ -20,8 +20,6 @@ app.use((_, res, next) => {
   next();
 });
 
-mongoose.connect(process.env.MONGODB_URI ?? 'mongodb://localhost:27017/mytrip');
-
 const personalDataSchema = new mongoose.Schema({
   field: String,
   value: String,
@@ -39,6 +37,7 @@ const userSchema = new mongoose.Schema({
   role: String,
   personalData: [personalDataSchema],
   passportPhoto: String,
+  mustChangePassword: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const fieldConfigSchema = new mongoose.Schema({
@@ -70,6 +69,28 @@ const invitationSchema = new mongoose.Schema({
   used: { type: Boolean, default: false }
 }, { timestamps: true });
 const Invitation = mongoose.model('Invitation', invitationSchema);
+
+async function ensureAdminUser() {
+  const existing = await User.findOne({ username: 'admin' });
+  if (existing) return;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    console.warn('ADMIN_PASSWORD not set; admin user not created');
+    return;
+  }
+  const hash = crypto.createHash('sha256').update(adminPassword).digest('hex');
+  await User.create({
+    username: 'admin',
+    role: 'admin',
+    passwordHash: hash,
+    firstName: 'Admin',
+    lastName: 'User',
+    name: 'Admin User',
+    mustChangePassword: true,
+    email: 'admin@example.com'
+  });
+  console.log('Seeded admin user');
+}
 
 async function sendInvitationEmail(email, signupUrl) {
   const apiKey = process.env.BREVO_API_KEY;
@@ -196,6 +217,28 @@ app.post('/api/register/:token', async (req, res) => {
   res.status(201).json({ id: user._id, email: user.email });
 });
 
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  const user = await User.findOne({ username });
+  if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+  const hash = crypto.createHash('sha256').update(password).digest('hex');
+  if (user.passwordHash !== hash) return res.status(401).json({ message: 'Invalid credentials' });
+  res.json({ id: user._id, role: user.role, name: user.name || user.username, mustChangePassword: user.mustChangePassword });
+});
+
+app.post('/api/users/:id/password', async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const user = await User.findById(req.params.id);
+  if (!user) return res.sendStatus(404);
+  const oldHash = crypto.createHash('sha256').update(oldPassword).digest('hex');
+  if (user.passwordHash !== oldHash) return res.status(403).json({ message: 'Current password incorrect' });
+  const newHash = crypto.createHash('sha256').update(newPassword).digest('hex');
+  user.passwordHash = newHash;
+  user.mustChangePassword = false;
+  await user.save();
+  res.json({ message: 'Password updated' });
+});
+
 app.get('/api/users', async (_req, res) => {
   const users = await User.find();
   res.json(users);
@@ -277,8 +320,19 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
-const port = process.env.PORT || 3001;
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+async function start() {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI ?? 'mongodb://localhost:27017/mytrip');
+    await ensureAdminUser();
+    const port = process.env.PORT || 3001;
+    app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+    });
+  } catch (err) {
+    console.error('Failed to start server', err);
+    process.exit(1);
+  }
+}
+
+start();
 

@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import LoginPage from "./components/LoginPage";
 import SignupPage from "./components/SignupPage";
 import Dashboard from "./components/Dashboard";
-import { USERS, INITIAL_TRIPS, INITIAL_FINANCIAL_RECORDS, INITIAL_DOCUMENTS, DEFAULT_PERSONAL_DATA_FIELD_CONFIGS, INITIAL_PERSONAL_DATA_RECORDS, INITIAL_ITINERARY_ITEMS } from "./mockData";
-import { Role, Trip, FinancialRecord, Document, PersonalDataRecord, PersonalDataFieldConfig, ItineraryItem, Theme } from "./types";
+import ChangePasswordPage from "./components/ChangePasswordPage";
+import { INITIAL_TRIPS, INITIAL_FINANCIAL_RECORDS, INITIAL_DOCUMENTS, DEFAULT_PERSONAL_DATA_FIELD_CONFIGS, INITIAL_PERSONAL_DATA_RECORDS, INITIAL_ITINERARY_ITEMS } from "./mockData";
+import { User, Trip, FinancialRecord, Document, PersonalDataRecord, PersonalDataFieldConfig, ItineraryItem, Theme } from "./types";
 import { API_BASE } from "./api";
 
 const App = () => {
   if (window.location.pathname === '/signup') {
     return <SignupPage />;
   }
-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [trips, setTrips] = useState<Trip[]>(INITIAL_TRIPS);
 
   // Load trips from backend MongoDB if available
@@ -72,12 +73,12 @@ const App = () => {
       .catch(() => {});
   }, []);
   
-  const handleLogin = (role: Role) => {
-    setCurrentUserRole(role);
+  const handleLogin = (user: User) => {
+    setCurrentUser(user);
   };
 
   const handleLogout = () => {
-    setCurrentUserRole(null);
+    setCurrentUser(null);
   };
   
   const handleCreateTrip = (newTrip: Trip) => {
@@ -140,13 +141,12 @@ const App = () => {
       setItineraryItems(prev => prev.filter(item => item.id !== idToRemove));
   };
   
-  const currentUser = useMemo(() => {
-    if (!currentUserRole) return null;
-    return USERS.find(u => u.role === currentUserRole);
-  }, [currentUserRole]);
-
   if (!currentUser) {
     return <LoginPage onLogin={handleLogin} />;
+  }
+
+  if (currentUser.mustChangePassword) {
+    return <ChangePasswordPage user={currentUser} onSuccess={() => setCurrentUser({ ...currentUser, mustChangePassword: false })} />;
   }
 
   return (
