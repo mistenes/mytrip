@@ -53,8 +53,8 @@ const tripSchema = new mongoose.Schema({
   name: String,
   startDate: String,
   endDate: String,
-  organizerIds: [mongoose.Schema.Types.ObjectId],
-  travelerIds: [mongoose.Schema.Types.ObjectId],
+  organizerIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
+  travelerIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
@@ -284,12 +284,12 @@ app.delete('/api/users/:id', async (req, res) => {
 
 app.get('/api/trips', async (_req, res) => {
   const trips = await Trip.find().lean();
-  const allOrganizerIds = [...new Set(trips.flatMap(t => t.organizerIds.map(id => id.toString())) )];
+  const allOrganizerIds = [...new Set(trips.flatMap(t => (t.organizerIds || []).map(id => id.toString())))];
   const organizers = await User.find({ _id: { $in: allOrganizerIds } }, 'name');
   const nameMap = Object.fromEntries(organizers.map(o => [o._id.toString(), o.name]));
   const result = trips.map(t => ({
     ...t,
-    organizerNames: t.organizerIds.map(id => nameMap[id.toString()] || '')
+    organizerNames: (t.organizerIds || []).map(id => nameMap[id.toString()] || '')
   }));
   res.json(result);
 });
