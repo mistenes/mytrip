@@ -35,6 +35,8 @@ Administrators can configure which personal data fields are collected and whethe
 
 Add `uploads/` to `.gitignore` so passport photos aren't committed to source control.
 
+Organizers or administrators can choose a traveler on a trip's personal data page to view their details and can print or save the displayed information as a PDF.
+
 ## Invitations
 
 Super admins or organizers can send signup links via Brevo. Each invitation includes the desired user role and optional trip to join. Links expire after 7 days so registration is only possible through email invitations.

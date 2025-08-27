@@ -649,6 +649,18 @@ html[data-theme='dark'] .login-box {
     text-decoration: underline;
 }
 
+/* Traveler selection and print actions */
+.traveler-select {
+    margin-bottom: 1rem;
+    max-width: 400px;
+}
+
+.personal-data-actions {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
 input[readonly] {
     background-color: var(--color-surface-tertiary) !important;
     cursor: not-allowed;

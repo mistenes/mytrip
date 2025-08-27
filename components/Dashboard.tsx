@@ -1248,43 +1248,76 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
     }
 
     // Admin & Organizer View
+    const [selectedTravelerId, setSelectedTravelerId] = useState<string>(() => tripParticipants[0]?.id || "");
+
+    useEffect(() => {
+        if (tripParticipants.length > 0 && !tripParticipants.find(p => p.id === selectedTravelerId)) {
+            setSelectedTravelerId(tripParticipants[0].id);
+        }
+    }, [tripParticipants, selectedTravelerId]);
+
+    const handlePrint = () => window.print();
+
+    if (tripParticipants.length === 0) {
+        return (
+            <div className="personal-data-page">
+                <h2>Résztvevők személyes adatai: {trip.name}</h2>
+                <p>Nincsenek utazók ehhez az utazáshoz.</p>
+            </div>
+        );
+    }
+
+    const participant = tripParticipants.find(p => p.id === selectedTravelerId);
+
     return (
         <div className="personal-data-page">
             <h2>Résztvevők személyes adatai: {trip.name}</h2>
-            {tripParticipants.length === 0 ? <p>Nincsenek utazók ehhez az utazáshoz.</p> : (
-            <div className="personal-data-grid">
-                {tripParticipants.map(participant => (
-                    <div key={participant.id} className="participant-data-card">
-                        <h3>{participant.name}</h3>
-                        {configs.map(config => {
-                            const record = records.find(r => r.userId === participant.id && r.fieldId === config.id);
-                            return (
-                                <div key={config.id} className="data-field-group">
-                                    <div className="data-field-header">
-                                        <label>{config.label}</label>
-                                        <button 
-                                            className="lock-btn" 
-                                            onClick={() => onToggleLock(participant.id, config.id, trip.id)}
-                                            aria-label={record?.isLocked ? 'Mező feloldása' : 'Mező zárolása'}
-                                        >
-                                            {record?.isLocked ? (
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
-                                            ) : (
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                                            )}
-                                        </button>
-                                    </div>
-                                    {config.type === 'file' ? (
-                                        record?.value ? <a href="#" className="file-link">{record.value}</a> : <p className="data-value empty">Nincs feltöltve</p>
-                                    ) : (
-                                        <p className={`data-value ${!record?.value ? 'empty' : ''}`}>{record?.value || 'Nincs megadva'}</p>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
-                ))}
+            <div className="traveler-select">
+                <label htmlFor="travelerSelect">Utazó</label>
+                <select
+                    id="travelerSelect"
+                    value={selectedTravelerId}
+                    onChange={e => setSelectedTravelerId(e.target.value)}
+                >
+                    {tripParticipants.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </select>
             </div>
+            {participant && (
+                <div className="participant-data-card">
+                    <h3>{participant.name}</h3>
+                    {configs.map(config => {
+                        const record = records.find(r => r.userId === participant.id && r.fieldId === config.id);
+                        return (
+                            <div key={config.id} className="data-field-group">
+                                <div className="data-field-header">
+                                    <label>{config.label}</label>
+                                    <button
+                                        className="lock-btn"
+                                        onClick={() => onToggleLock(participant.id, config.id, trip.id)}
+                                        aria-label={record?.isLocked ? 'Mező feloldása' : 'Mező zárolása'}
+                                    >
+                                        {record?.isLocked ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                        )}
+                                    </button>
+                                </div>
+                                {config.type === 'file' ? (
+                                    record?.value ? <a href="#" className="file-link">{record.value}</a> : <p className="data-value empty">Nincs feltöltve</p>
+                                ) : (
+                                    <p className={`data-value ${!record?.value ? 'empty' : ''}`}>{record?.value || 'Nincs megadva'}</p>
+                                )}
+                            </div>
+                        );
+                    })}
+                    <div className="personal-data-actions">
+                        <button className="btn btn-secondary" onClick={handlePrint}>Nyomtatás</button>
+                        <button className="btn btn-secondary" onClick={handlePrint}>PDF mentése</button>
+                    </div>
+                </div>
             )}
         </div>
     );
