@@ -1164,7 +1164,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
     records: PersonalDataRecord[];
     configs: PersonalDataFieldConfig[];
     onUpdateRecord: (record: Omit<PersonalDataRecord, 'isLocked'>) => void;
-    onToggleLock: (userId: string, fieldId: string, tripId: string) => void;
+    onToggleLock: (userId: string, fieldId: string) => void;
     onUpsertConfig: (config: PersonalDataFieldConfig) => void;
     users: User[];
 }) => {
@@ -1197,12 +1197,12 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                     method: 'POST',
                     body: formDataData
                 }).catch(() => {});
-                onUpdateRecord({ userId: user.id, tripId: trip.id, fieldId, value: file.name });
+                onUpdateRecord({ userId: user.id, fieldId, value: file.name });
             }
         };
 
         const handleBlur = (fieldId: string) => {
-            onUpdateRecord({ userId: user.id, tripId: trip.id, fieldId, value: formData[fieldId] });
+            onUpdateRecord({ userId: user.id, fieldId, value: formData[fieldId] });
         };
         
         return (
@@ -1264,7 +1264,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         fetch(`${API_BASE}/api/field-config/${newFieldId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ label: newFieldLabel, type: newFieldType, enabled: true, locked: false, tripId: 0, order: configs.length + 1 })
+            body: JSON.stringify({ label: newFieldLabel, type: newFieldType, enabled: true, locked: false, tripId: trip.id, order: configs.length + 1 })
         }).then(res => res.json()).then(c => {
             onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
             setNewFieldId('');
@@ -1277,7 +1277,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         fetch(`${API_BASE}/api/field-config/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order, tripId: 0 })
+            body: JSON.stringify({ order, tripId: trip.id })
         }).then(res => res.json()).then(c => {
             onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
         }).catch(() => {});
@@ -1285,8 +1285,24 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
 
     const handleRemoveFile = (userId: string, fieldId: string) => {
         fetch(`${API_BASE}/api/users/${userId}/personal-data/${fieldId}/file`, { method: 'DELETE' })
-            .then(() => onUpdateRecord({ userId, tripId: trip.id, fieldId, value: '' }))
+            .then(() => onUpdateRecord({ userId, fieldId, value: '' }))
             .catch(() => {});
+    };
+
+    const handleTravelerInput = (userId: string, fieldId: string, value: string) => {
+        onUpdateRecord({ userId, fieldId, value });
+    };
+
+    const handleTravelerFileChange = async (userId: string, fieldId: string, file: File | null) => {
+        if (file) {
+            const fd = new FormData();
+            fd.append('file', file);
+            await fetch(`${API_BASE}/api/users/${userId}/personal-data/${fieldId}/file`, {
+                method: 'POST',
+                body: fd
+            }).catch(() => {});
+            onUpdateRecord({ userId, fieldId, value: file.name });
+        }
     };
 
     const handlePrint = () => window.print();
@@ -1347,7 +1363,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                                     <label>{config.label}</label>
                                     <button
                                         className="lock-btn"
-                                        onClick={() => onToggleLock(participant.id, config.id, trip.id)}
+                                        onClick={() => onToggleLock(participant.id, config.id)}
                                         aria-label={record?.isLocked ? 'Mező feloldása' : 'Mező zárolása'}
                                     >
                                         {record?.isLocked ? (
@@ -1358,16 +1374,25 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                                     </button>
                                 </div>
                                 {config.type === 'file' ? (
-                                    record?.value ? (
-                                        <div>
-                                            <a href={`${API_BASE}/${record.value}`} className="file-link">{record.value}</a>
-                                            <button className="remove-file" onClick={() => handleRemoveFile(participant.id, config.id)}>Remove</button>
-                                        </div>
-                                    ) : (
-                                        <p className="data-value empty">Nincs feltöltve</p>
-                                    )
+                                    <div>
+                                        {record?.value && (
+                                            <div>
+                                                <a href={`${API_BASE}/${record.value}`} className="file-link">{record.value}</a>
+                                                <button className="remove-file" onClick={() => handleRemoveFile(participant.id, config.id)}>Remove</button>
+                                            </div>
+                                        )}
+                                        {!record?.isLocked && (
+                                            <input type="file" onChange={e => handleTravelerFileChange(participant.id, config.id, e.target.files ? e.target.files[0] : null)} />
+                                        )}
+                                    </div>
                                 ) : (
-                                    <p className={`data-value ${!record?.value ? 'empty' : ''}`}>{record?.value || 'Nincs megadva'}</p>
+                                    <input
+                                        type={config.type}
+                                        defaultValue={record?.value || ''}
+                                        readOnly={record?.isLocked}
+                                        onBlur={e => handleTravelerInput(participant.id, config.id, e.target.value)}
+                                        className={!record?.value ? 'empty' : ''}
+                                    />
                                 )}
                             </div>
                         );
@@ -1490,7 +1515,7 @@ const Dashboard = ({
     personalDataConfigs: PersonalDataFieldConfig[],
     personalDataRecords: PersonalDataRecord[],
     onUpdatePersonalData: (record: Omit<PersonalDataRecord, 'isLocked'>) => void,
-    onTogglePersonalDataLock: (userId: string, fieldId: string, tripId: string) => void,
+    onTogglePersonalDataLock: (userId: string, fieldId: string) => void,
     onUpsertPersonalDataConfig: (config: PersonalDataFieldConfig) => void,
     itineraryItems: ItineraryItem[],
     onAddItineraryItem: (item: Omit<ItineraryItem, 'id'>) => void,
@@ -1551,9 +1576,8 @@ const Dashboard = ({
   }, [selectedTripId, personalDataConfigs]);
 
   const tripPersonalDataRecords = useMemo(() => {
-      if (!selectedTripId) return [];
-      return personalDataRecords.filter(r => r.tripId === selectedTripId);
-  }, [selectedTripId, personalDataRecords]);
+      return personalDataRecords;
+  }, [personalDataRecords]);
   
   const tripItineraryItems = useMemo(() => {
       if (!selectedTripId) return [];

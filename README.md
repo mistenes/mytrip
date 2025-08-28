@@ -25,7 +25,7 @@ If an account with username `admin` does not exist, setting `ADMIN_PASSWORD` see
 
 ## Personal data management
 
-Administrators can configure which personal data fields are collected, arrange their order, and decide if they are editable. The server seeds a basic set of fields on startup:
+Administrators can configure which personal data fields are collected **per trip**, arrange their order, and decide if they are editable. When a new trip is created the server copies a basic set of fields for that trip:
 
 1. First Name *(locked)*
 2. Last Name *(locked)*
@@ -41,7 +41,7 @@ Administrators can configure which personal data fields are collected, arrange t
 Use the following API endpoints:
 
 - `GET /api/field-config` – list available fields in display order
-- `PUT /api/field-config/:field` – create or update a field (supports `label`, `type`, `enabled`, `locked`, `order`, `tripId`)
+- `PUT /api/field-config/:field` – create or update a field for the given trip (supports `label`, `type`, `enabled`, `locked`, `order`, `tripId`)
 - `PUT /api/users/:id/personal-data` – update a user's field value (respects field configuration and per-user lock)
 - `GET /api/users/:id/personal-data` – retrieve a user's current personal data entries
 - `PUT /api/users/:id/personal-data/:field/lock` – lock or unlock a field for a specific user
@@ -50,7 +50,7 @@ Use the following API endpoints:
 
 Uploaded files are served from `/uploads`, and the `uploads/` directory is ignored by Git.
 
-Organizers or administrators can choose a traveler on a trip's personal data page to view their details, print them, save them as PDF, manage field definitions, and remove uploaded files.
+On a trip's personal data page, organizers or administrators can choose any traveler, view their details, edit unlocked fields, upload or remove files, and manage the trip's field definitions. Travelers see only their own form and may edit unlocked fields.
 
 ## Invitations
 

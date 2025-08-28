@@ -50,7 +50,6 @@ export interface PersonalDataFieldConfig {
 
 export interface PersonalDataRecord {
   userId: string;
-  tripId: string;
   fieldId: string;
   value: string;
   isLocked: boolean;

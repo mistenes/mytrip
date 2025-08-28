@@ -85,7 +85,7 @@ const App = () => {
         const records: PersonalDataRecord[] = [];
         data.forEach((u: any) => {
           (u.personalData || []).forEach((pd: any) => {
-            records.push({ userId: u._id, tripId: '', fieldId: pd.field, value: pd.value, isLocked: pd.locked });
+            records.push({ userId: u._id, fieldId: pd.field, value: pd.value, isLocked: pd.locked });
           });
         });
         setPersonalDataRecords(records);
@@ -117,14 +117,12 @@ const App = () => {
 
   const handleUpdatePersonalData = (updatedRecord: Omit<PersonalDataRecord, 'isLocked'>) => {
       setPersonalDataRecords(prev => {
-          const existingIndex = prev.findIndex(r => r.userId === updatedRecord.userId && r.tripId === updatedRecord.tripId && r.fieldId === updatedRecord.fieldId);
+          const existingIndex = prev.findIndex(r => r.userId === updatedRecord.userId && r.fieldId === updatedRecord.fieldId);
           if (existingIndex > -1) {
               const newRecords = [...prev];
-              // Preserve the existing isLocked value, only update the value
               newRecords[existingIndex] = { ...newRecords[existingIndex], value: updatedRecord.value };
               return newRecords;
           } else {
-              // It's a new record, so add it with isLocked defaulting to false
               return [...prev, { ...updatedRecord, isLocked: false }];
           }
       });
@@ -143,16 +141,16 @@ const App = () => {
       });
   };
 
-  const handleTogglePersonalDataLock = (userId: string, fieldId: string, tripId: string) => {
+  const handleTogglePersonalDataLock = (userId: string, fieldId: string) => {
       setPersonalDataRecords(prev =>
           prev.map(record => {
-              if (record.userId === userId && record.fieldId === fieldId && record.tripId === tripId) {
+              if (record.userId === userId && record.fieldId === fieldId) {
                   return { ...record, isLocked: !record.isLocked };
               }
               return record;
           })
       );
-      const record = personalDataRecords.find(r => r.userId === userId && r.fieldId === fieldId && r.tripId === tripId);
+      const record = personalDataRecords.find(r => r.userId === userId && r.fieldId === fieldId);
       fetch(`${API_BASE}/api/users/${userId}/personal-data/${fieldId}/lock`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

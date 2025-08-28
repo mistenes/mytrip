@@ -43,7 +43,7 @@ const userSchema = new mongoose.Schema({
 
 const fieldConfigSchema = new mongoose.Schema({
   field: String,
-  tripId: Number,
+  tripId: { type: String, default: 'default' },
   label: String,
   type: { type: String, enum: ['text', 'date', 'file'], default: 'text' },
   enabled: { type: Boolean, default: true },
@@ -109,8 +109,8 @@ async function ensureDefaultFieldConfigs() {
   ];
   for (const def of defaults) {
     await FieldConfig.findOneAndUpdate(
-      { field: def.field, tripId: 0 },
-      { ...def, tripId: 0 },
+      { field: def.field, tripId: 'default' },
+      { ...def, tripId: 'default' },
       { upsert: true }
     );
   }
@@ -327,6 +327,12 @@ app.post('/api/trips', async (req, res) => {
   const { name, startDate, endDate, organizerIds = [], travelerIds = [] } = req.body;
   const trip = new Trip({ name, startDate, endDate, organizerIds, travelerIds });
   await trip.save();
+  // copy default field configs to this trip
+  const defaults = await FieldConfig.find({ tripId: 'default' }).lean();
+  for (const def of defaults) {
+    const { field, label, type, enabled, locked, order } = def;
+    await FieldConfig.create({ field, label, type, enabled, locked, order, tripId: String(trip._id) });
+  }
   res.status(201).json(trip);
 });
 
