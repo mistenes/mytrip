@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { API_BASE } from "../api";
 import { User, Trip, FinancialRecord, Document, PersonalDataFieldConfig, PersonalDataRecord, ItineraryItem, Role, TripView, Theme } from "../types";
+import "../styles/dashboard.css";
+import "../styles/user-management.css";
 
 const ThemeSwitcher = ({ theme, onThemeChange }: { theme: Theme, onThemeChange: (theme: Theme) => void }) => (
     <div className="theme-switcher">
