@@ -1259,19 +1259,23 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         }
     }, [tripParticipants, selectedTravelerId]);
 
-    const [newFieldId, setNewFieldId] = useState('');
+    const [localConfigs, setLocalConfigs] = useState<PersonalDataFieldConfig[]>([]);
+    useEffect(() => {
+        setLocalConfigs(configs.slice().sort((a, b) => (a.order || 0) - (b.order || 0)));
+    }, [configs]);
+
     const [newFieldLabel, setNewFieldLabel] = useState('');
     const [newFieldType, setNewFieldType] = useState<'text' | 'date' | 'file'>('text');
 
     const handleAddField = () => {
-        if (!newFieldId) return;
-        fetch(`${API_BASE}/api/field-config/${newFieldId}`, {
+        const id = newFieldLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        if (!id) return;
+        fetch(`${API_BASE}/api/field-config/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ label: newFieldLabel, type: newFieldType, enabled: true, locked: false, tripId: trip.id, order: configs.length + 1 })
+            body: JSON.stringify({ label: newFieldLabel, type: newFieldType, enabled: true, locked: false, tripId: trip.id, order: localConfigs.length + 1 })
         }).then(res => res.json()).then(c => {
             onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
-            setNewFieldId('');
             setNewFieldLabel('');
             setNewFieldType('text');
         }).catch(() => {});
@@ -1285,6 +1289,30 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         }).then(res => res.json()).then(c => {
             onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
         }).catch(() => {});
+    };
+
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+    const onDragStart = (index: number) => {
+        setDragIndex(index);
+    };
+
+    const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+    };
+
+    const onDrop = (index: number) => {
+        if (dragIndex === null) return;
+        const updated = [...localConfigs];
+        const [moved] = updated.splice(dragIndex, 1);
+        updated.splice(index, 0, moved);
+        updated.forEach((cfg, idx) => {
+            if (cfg.order !== idx + 1) {
+                handleOrderChange(cfg.id, idx + 1);
+            }
+        });
+        setLocalConfigs(updated.map((cfg, idx) => ({ ...cfg, order: idx + 1 })));
+        setDragIndex(null);
     };
 
     const handleRemoveFile = (userId: string, fieldId: string) => {
@@ -1328,15 +1356,21 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
             <div className="field-manager">
                 <h3>Mezők kezelése</h3>
                 <div className="config-list">
-                    {configs.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(c => (
-                        <div key={c.id} className="config-item">
-                            <span>{c.label}</span>
-                            <input type="number" value={c.order || 0} onChange={e => handleOrderChange(c.id, Number(e.target.value))} />
+                    {localConfigs.map((c, index) => (
+                        <div
+                            key={c.id}
+                            className="config-item"
+                            draggable
+                            onDragStart={() => onDragStart(index)}
+                            onDragOver={onDragOver}
+                            onDrop={() => onDrop(index)}
+                        >
+                            <span className="drag-handle">☰</span>
+                            <span className="config-label">{c.label} <small>({c.type})</small></span>
                         </div>
                     ))}
                 </div>
                 <div className="add-field">
-                    <input placeholder="Mező azonosító" value={newFieldId} onChange={e => setNewFieldId(e.target.value)} />
                     <input placeholder="Címke" value={newFieldLabel} onChange={e => setNewFieldLabel(e.target.value)} />
                     <select value={newFieldType} onChange={e => setNewFieldType(e.target.value as any)}>
                         <option value="text">Szöveg</option>
@@ -1361,7 +1395,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
             {participant && (
                 <div className="participant-data-card">
                     <h3>{participant.name}</h3>
-                    {configs.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(config => {
+                    {localConfigs.map(config => {
                         const record = records.find(r => r.userId === participant.id && r.fieldId === config.id);
                         return (
                             <div key={config.id} className="data-field-group">
