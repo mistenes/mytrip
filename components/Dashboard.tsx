@@ -1212,37 +1212,39 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                 <h2>Személyes adatok a(z) {trip.name} utazáshoz</h2>
                 <p>Kérjük, töltse ki az alábbi mezőket a foglalások véglegesítéséhez.</p>
                 <form className="personal-data-form">
-                    {configs.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(config => {
-                        const record = records.find(r => r.userId === user.id && r.fieldId === config.id);
-                        const isLocked = record?.isLocked || false;
-                        
-                        return (
-                            <div className="form-group" key={config.id}>
-                                <label htmlFor={config.id}>{config.label}</label>
-                                {config.type === 'file' ? (
-                                    <div>
-                                        <input 
-                                            id={config.id} 
-                                            type="file" 
-                                            onChange={(e) => handleFileChange(config.id, e.target.files ? e.target.files[0] : null)}
-                                            disabled={isLocked}
+                    <div className="personal-data-grid">
+                        {configs.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(config => {
+                            const record = records.find(r => r.userId === user.id && r.fieldId === config.id);
+                            const isLocked = record?.isLocked || false;
+
+                            return (
+                                <div className="form-group" key={config.id}>
+                                    <label htmlFor={config.id}>{config.label}</label>
+                                    {config.type === 'file' ? (
+                                        <div>
+                                            <input
+                                                id={config.id}
+                                                type="file"
+                                                onChange={(e) => handleFileChange(config.id, e.target.files ? e.target.files[0] : null)}
+                                                disabled={isLocked}
+                                            />
+                                            {formData[config.id] && <p className="file-info">Feltöltve: {formData[config.id]}</p>}
+                                        </div>
+                                    ) : (
+                                         <input
+                                            id={config.id}
+                                            type={config.type}
+                                            value={formData[config.id] || ''}
+                                            onChange={(e) => handleChange(config.id, e.target.value)}
+                                            onBlur={() => handleBlur(config.id)}
+                                            readOnly={isLocked}
+                                            placeholder={isLocked ? 'Zárolva' : ''}
                                         />
-                                        {formData[config.id] && <p className="file-info">Feltöltve: {formData[config.id]}</p>}
-                                    </div>
-                                ) : (
-                                     <input
-                                        id={config.id}
-                                        type={config.type}
-                                        value={formData[config.id] || ''}
-                                        onChange={(e) => handleChange(config.id, e.target.value)}
-                                        onBlur={() => handleBlur(config.id)}
-                                        readOnly={isLocked}
-                                        placeholder={isLocked ? 'Zárolva' : ''}
-                                    />
-                                )}
-                            </div>
-                        )
-                    })}
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
                 </form>
             </div>
         )
@@ -1324,22 +1326,24 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         <div className="personal-data-page">
             <h2>Résztvevők személyes adatai: {trip.name}</h2>
             <div className="field-manager">
-                <h3>Mezők</h3>
-                {configs.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(c => (
-                    <div key={c.id} className="config-item">
-                        <span>{c.label}</span>
-                        <input type="number" value={c.order || 0} onChange={e => handleOrderChange(c.id, Number(e.target.value))} />
-                    </div>
-                ))}
+                <h3>Mezők kezelése</h3>
+                <div className="config-list">
+                    {configs.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(c => (
+                        <div key={c.id} className="config-item">
+                            <span>{c.label}</span>
+                            <input type="number" value={c.order || 0} onChange={e => handleOrderChange(c.id, Number(e.target.value))} />
+                        </div>
+                    ))}
+                </div>
                 <div className="add-field">
-                    <input placeholder="Field ID" value={newFieldId} onChange={e => setNewFieldId(e.target.value)} />
-                    <input placeholder="Label" value={newFieldLabel} onChange={e => setNewFieldLabel(e.target.value)} />
+                    <input placeholder="Mező azonosító" value={newFieldId} onChange={e => setNewFieldId(e.target.value)} />
+                    <input placeholder="Címke" value={newFieldLabel} onChange={e => setNewFieldLabel(e.target.value)} />
                     <select value={newFieldType} onChange={e => setNewFieldType(e.target.value as any)}>
-                        <option value="text">Text</option>
-                        <option value="date">Date</option>
-                        <option value="file">File</option>
+                        <option value="text">Szöveg</option>
+                        <option value="date">Dátum</option>
+                        <option value="file">Fájl</option>
                     </select>
-                    <button className="btn" onClick={handleAddField}>Add</button>
+                    <button className="btn" onClick={handleAddField}>Hozzáadás</button>
                 </div>
             </div>
             <div className="traveler-select">

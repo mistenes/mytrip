@@ -96,16 +96,16 @@ async function ensureAdminUser() {
 
 async function ensureDefaultFieldConfigs() {
   const defaults = [
-    { field: 'firstName', label: 'First Name', type: 'text', locked: true, order: 1 },
-    { field: 'lastName', label: 'Last Name', type: 'text', locked: true, order: 2 },
-    { field: 'dateOfBirth', label: 'Date of Birth', type: 'date', locked: true, order: 3 },
-    { field: 'middleName', label: 'Middle Name', type: 'text', order: 4 },
-    { field: 'passportNumber', label: 'Passport Number', type: 'text', order: 5 },
-    { field: 'issueDate', label: 'Issue Date', type: 'date', order: 6 },
-    { field: 'issuingCountry', label: 'Issuing Country', type: 'text', order: 7 },
-    { field: 'expiryDate', label: 'Expiry Date', type: 'date', order: 8 },
-    { field: 'nationality', label: 'Nationality', type: 'text', order: 9 },
-    { field: 'sex', label: 'Sex', type: 'text', order: 10 },
+    { field: 'firstName', label: 'Keresztnév', type: 'text', locked: true, order: 1 },
+    { field: 'lastName', label: 'Vezetéknév', type: 'text', locked: true, order: 2 },
+    { field: 'dateOfBirth', label: 'Születési dátum', type: 'date', locked: true, order: 3 },
+    { field: 'middleName', label: 'Középső név', type: 'text', order: 4 },
+    { field: 'passportNumber', label: 'Útlevélszám', type: 'text', order: 5 },
+    { field: 'issueDate', label: 'Kiadás dátuma', type: 'date', order: 6 },
+    { field: 'issuingCountry', label: 'Kibocsátó ország', type: 'text', order: 7 },
+    { field: 'expiryDate', label: 'Lejárati dátum', type: 'date', order: 8 },
+    { field: 'nationality', label: 'Állampolgárság', type: 'text', order: 9 },
+    { field: 'sex', label: 'Nem', type: 'text', order: 10 },
   ];
   for (const def of defaults) {
     await FieldConfig.findOneAndUpdate(
