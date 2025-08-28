@@ -400,7 +400,7 @@ const UserManagement = ({ onInvite, trips, users, refreshKey, onUsersChanged }: 
           {organizers.map((u: any) => (
             <div
               key={u._id}
-              className={`user-tile${selectedUser?._id === u._id ? ' selected' : ''}`}
+              className={`user-tile organizer${selectedUser?._id === u._id ? ' selected' : ''}`}
               onClick={() => setSelectedUser(u)}
             >
               <div className="user-name">{u.name}</div>
@@ -416,7 +416,7 @@ const UserManagement = ({ onInvite, trips, users, refreshKey, onUsersChanged }: 
           {others.map((u: any) => (
             <div
               key={u._id}
-              className={`user-tile${selectedUser?._id === u._id ? ' selected' : ''}`}
+              className={`user-tile ${u.role}${selectedUser?._id === u._id ? ' selected' : ''}`}
               onClick={() => setSelectedUser(u)}
             >
               <div className="user-name">{u.name}</div>

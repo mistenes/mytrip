@@ -215,7 +215,14 @@ html[data-theme='dark'] .login-box {
 }
 
 .trip-users-section li {
-  margin-bottom: 0.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-surface);
+  margin-bottom: 0.5rem;
 }
 
 /* --- Dashboard Layout --- */
@@ -329,18 +336,16 @@ html[data-theme='dark'] .login-box {
 }
 
 .user-management .user-tiles {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 1rem;
   margin-top: 1rem;
 }
-
 .user-management .user-tile {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  padding: 0.75rem;
-  width: 150px;
+  padding: 1rem;
   cursor: pointer;
   text-align: center;
   box-shadow: 0 2px 4px var(--color-shadow);
@@ -354,11 +359,28 @@ html[data-theme='dark'] .login-box {
 
 .user-management .user-name {
   font-weight: 600;
+  margin-bottom: 0.25rem;
 }
 
 .user-management .user-role {
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: var(--color-text-on-primary);
+  background-color: var(--color-secondary);
+}
+
+.user-management .user-tile.admin .user-role {
+  background-color: #6f42c1;
+}
+
+.user-management .user-tile.organizer .user-role {
+  background-color: var(--color-primary);
+}
+
+.user-management .user-tile.traveler .user-role {
+  background-color: var(--color-secondary);
 }
 
 .app-header {
