@@ -33,13 +33,18 @@ const ProblemReportButton = () => {
 
   return (
     <>
-      <button className="report-problem-button" onClick={() => setOpen(true)} aria-label="Hiba jelentése">
+      <button
+        className="report-problem-button"
+        onClick={() => setOpen(true)}
+        aria-label="Hiba bejelentése / Feature request"
+        title="Hiba bejelentése / Feature request"
+      >
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       </button>
       {open && (
         <div className="report-modal-overlay" onClick={() => setOpen(false)}>
           <div className="report-modal" onClick={e => e.stopPropagation()}>
-            <h2>Hiba jelentése</h2>
+            <h2>Hiba bejelentése / Feature request</h2>
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label htmlFor="reportName">Név</label>

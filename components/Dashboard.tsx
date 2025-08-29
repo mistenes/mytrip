@@ -18,13 +18,10 @@ const ThemeSwitcher = ({ theme, onThemeChange }: { theme: Theme, onThemeChange: 
     </div>
 );
 
-const Header = ({ user, onLogout, onToggleSidebar, showHamburger, theme, onThemeChange }: { 
-    user: User; 
-    onLogout: () => void; 
+const Header = ({ user, onToggleSidebar, showHamburger }: {
+    user: User;
     onToggleSidebar: () => void;
     showHamburger: boolean;
-    theme: Theme;
-    onThemeChange: (theme: Theme) => void;
 }) => (
   <header className="app-header">
     <div className="header-left">
@@ -36,9 +33,7 @@ const Header = ({ user, onLogout, onToggleSidebar, showHamburger, theme, onTheme
          <h1 className="logo">myTrip</h1>
     </div>
     <div className="user-info">
-      <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
       <span>Üdv, <strong>{user.name}</strong> ({user.role})</span>
-      <button onClick={onLogout} className="btn btn-logout">Kijelentkezés</button>
     </div>
   </header>
 );
@@ -1687,7 +1682,10 @@ const Sidebar = ({
     mainView,
     userRole,
     userId,
-    isOpen
+    isOpen,
+    onLogout,
+    theme,
+    onThemeChange
 }: {
     trips: Trip[],
     selectedTripId: string | null,
@@ -1699,7 +1697,10 @@ const Sidebar = ({
     mainView: 'trips' | 'users',
     userRole: Role,
     userId: string,
-    isOpen: boolean
+    isOpen: boolean,
+    onLogout: () => void,
+    theme: Theme,
+    onThemeChange: (theme: Theme) => void
 }) => {
 
     return (
@@ -1759,6 +1760,10 @@ const Sidebar = ({
                     )}
                 </ul>
             </nav>
+            <div className="sidebar-footer">
+                <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
+                <button onClick={onLogout} className="btn btn-logout">Kijelentkezés</button>
+            </div>
         </aside>
     );
 };
@@ -1946,16 +1951,16 @@ const Dashboard = ({
             userRole={user.role}
             userId={String(user.id)}
             isOpen={isMobileSidebarOpen}
+            onLogout={onLogout}
+            theme={theme}
+            onThemeChange={onThemeChange}
         />
         <div className="sidebar-overlay" onClick={() => setMobileSidebarOpen(false)}></div>
         <div className="dashboard-container">
-          <Header 
-            user={user} 
-            onLogout={onLogout} 
-            onToggleSidebar={() => setMobileSidebarOpen(true)} 
+          <Header
+            user={user}
+            onToggleSidebar={() => setMobileSidebarOpen(true)}
             showHamburger={true}
-            theme={theme}
-            onThemeChange={onThemeChange}
           />
           <main className="dashboard-content">
             {renderContent()}
