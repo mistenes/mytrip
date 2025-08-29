@@ -391,6 +391,27 @@
     flex: 1;
 }
 
+.config-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.config-item input,
+.config-item select {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    border-radius: 4px;
+}
+
+.available-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
 .add-field {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));

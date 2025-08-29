@@ -1160,7 +1160,7 @@ const TripDocuments = ({ trip, user, documents, onAddDocument, users }: {
     );
 };
 
-const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onToggleLock, onUpsertConfig, users }: {
+const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onToggleLock, onUpsertConfig, onRemoveConfig, users }: {
     trip: Trip;
     user: User;
     records: PersonalDataRecord[];
@@ -1168,6 +1168,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
     onUpdateRecord: (record: Omit<PersonalDataRecord, 'isLocked'>) => void;
     onToggleLock: (userId: string, fieldId: string) => void;
     onUpsertConfig: (config: PersonalDataFieldConfig) => void;
+    onRemoveConfig: (id: string, tripId: string) => void;
     users: User[];
 }) => {
 
@@ -1180,7 +1181,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
     if (user.role === 'traveler') {
         const [formData, setFormData] = useState<Record<string, string>>(() => {
             const data: Record<string, string> = {};
-            configs.forEach(config => {
+            configs.filter(c => c.enabled !== false).forEach(config => {
                 const record = records.find(r => r.userId === user.id && r.fieldId === config.id);
                 data[config.id] = record?.value || '';
             });
@@ -1213,7 +1214,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                 <p>Kérjük, töltse ki az alábbi mezőket a foglalások véglegesítéséhez.</p>
                 <form className="personal-data-form">
                     <div className="personal-data-grid">
-                        {configs.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(config => {
+                        {configs.filter(c => c.enabled !== false).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(config => {
                             const record = records.find(r => r.userId === user.id && r.fieldId === config.id);
                             const isLocked = record?.isLocked || false;
 
@@ -1259,10 +1260,15 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         }
     }, [tripParticipants, selectedTravelerId]);
 
+    const BASIC_FIELD_IDS = ['firstName','lastName','dateOfBirth','passportNumber','issueDate','issuingCountry','expiryDate','nationality','sex'];
+
     const [localConfigs, setLocalConfigs] = useState<PersonalDataFieldConfig[]>([]);
+    const [availableFields, setAvailableFields] = useState<PersonalDataFieldConfig[]>([]);
     useEffect(() => {
-        setLocalConfigs(configs.slice().sort((a, b) => (a.order || 0) - (b.order || 0)));
-    }, [configs]);
+        const tripConfigs = configs.filter(c => c.tripId === trip.id);
+        setLocalConfigs(tripConfigs.filter(c => c.enabled !== false).sort((a, b) => (a.order || 0) - (b.order || 0)));
+        setAvailableFields(tripConfigs.filter(c => c.enabled === false && BASIC_FIELD_IDS.includes(c.id)).sort((a,b)=>(a.order||0)-(b.order||0)));
+    }, [configs, trip.id]);
 
     const [newFieldLabel, setNewFieldLabel] = useState('');
     const [newFieldType, setNewFieldType] = useState<'text' | 'date' | 'file'>('text');
@@ -1281,11 +1287,63 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         }).catch(() => {});
     };
 
+    const handleEnableField = (cfg: PersonalDataFieldConfig) => {
+        fetch(`${API_BASE}/api/field-config/${cfg.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: cfg.label, type: cfg.type, enabled: true, locked: cfg.locked, tripId: trip.id, order: localConfigs.length + 1 })
+        }).then(res => res.json()).then(c => {
+            onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
+        }).catch(() => {});
+    };
+
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editLabel, setEditLabel] = useState('');
+    const [editType, setEditType] = useState<'text' | 'date' | 'file'>('text');
+
+    const startEdit = (cfg: PersonalDataFieldConfig) => {
+        setEditingId(cfg.id);
+        setEditLabel(cfg.label);
+        setEditType(cfg.type);
+    };
+
+    const saveEdit = (cfg: PersonalDataFieldConfig) => {
+        fetch(`${API_BASE}/api/field-config/${cfg.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: editLabel, type: editType, enabled: true, locked: cfg.locked, tripId: trip.id, order: cfg.order })
+        }).then(res => res.json()).then(c => {
+            onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
+            setEditingId(null);
+        }).catch(() => {});
+    };
+
+    const cancelEdit = () => setEditingId(null);
+
+    const handleDeleteField = (cfg: PersonalDataFieldConfig) => {
+        if (cfg.locked) return;
+        if (BASIC_FIELD_IDS.includes(cfg.id)) {
+            fetch(`${API_BASE}/api/field-config/${cfg.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ label: cfg.label, type: cfg.type, enabled: false, locked: cfg.locked, tripId: trip.id, order: cfg.order })
+            }).then(res => res.json()).then(c => {
+                onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
+            }).catch(() => {});
+        } else {
+            fetch(`${API_BASE}/api/field-config/${cfg.id}?tripId=${trip.id}`, { method: 'DELETE' })
+                .then(() => onRemoveConfig(cfg.id, trip.id))
+                .catch(() => {});
+        }
+    };
+
     const handleOrderChange = (id: string, order: number) => {
+        const cfg = localConfigs.find(c => c.id === id) || availableFields.find(c => c.id === id);
+        if (!cfg) return;
         fetch(`${API_BASE}/api/field-config/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order, tripId: trip.id })
+            body: JSON.stringify({ label: cfg.label, type: cfg.type, enabled: cfg.enabled !== false, locked: cfg.locked, tripId: trip.id, order })
         }).then(res => res.json()).then(c => {
             onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
         }).catch(() => {});
@@ -1360,16 +1418,46 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                         <div
                             key={c.id}
                             className="config-item"
-                            draggable
+                            draggable={editingId === null}
                             onDragStart={() => onDragStart(index)}
                             onDragOver={onDragOver}
                             onDrop={() => onDrop(index)}
                         >
                             <span className="drag-handle">☰</span>
-                            <span className="config-label">{c.label} <small>({c.type})</small></span>
+                            {editingId === c.id ? (
+                                <>
+                                    <input value={editLabel} onChange={e => setEditLabel(e.target.value)} />
+                                    <select value={editType} onChange={e => setEditType(e.target.value as any)}>
+                                        <option value="text">Szöveg</option>
+                                        <option value="date">Dátum</option>
+                                        <option value="file">Fájl</option>
+                                    </select>
+                                    <div className="config-actions">
+                                        <button className="btn btn-small" onClick={() => saveEdit(c)}>Mentés</button>
+                                        <button className="btn btn-small" onClick={cancelEdit}>Mégse</button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="config-label">{c.label} <small>({c.type})</small></span>
+                                    {!c.locked && (
+                                        <div className="config-actions">
+                                            <button className="btn btn-small" onClick={() => startEdit(c)}>Szerkesztés</button>
+                                            <button className="btn btn-danger btn-small" onClick={() => handleDeleteField(c)}>Törlés</button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
                     ))}
                 </div>
+                {availableFields.length > 0 && (
+                    <div className="available-fields">
+                        {availableFields.map(f => (
+                            <button key={f.id} className="btn btn-secondary btn-small" onClick={() => handleEnableField(f)}>+ {f.label}</button>
+                        ))}
+                    </div>
+                )}
                 <div className="add-field">
                     <input placeholder="Címke" value={newFieldLabel} onChange={e => setNewFieldLabel(e.target.value)} />
                     <select value={newFieldType} onChange={e => setNewFieldType(e.target.value as any)}>
@@ -1541,7 +1629,7 @@ const Dashboard = ({
     user, trips, refreshTrips, onLogout, onCreateTrip,
     financialRecords, onAddFinancialRecord,
     documents, onAddDocument,
-    personalDataConfigs, personalDataRecords, onUpdatePersonalData, onTogglePersonalDataLock, onUpsertPersonalDataConfig,
+    personalDataConfigs, personalDataRecords, onUpdatePersonalData, onTogglePersonalDataLock, onUpsertPersonalDataConfig, onRemovePersonalDataConfig,
     itineraryItems, onAddItineraryItem, onRemoveItineraryItem,
     theme, onThemeChange
 }: {
@@ -1559,6 +1647,7 @@ const Dashboard = ({
     onUpdatePersonalData: (record: Omit<PersonalDataRecord, 'isLocked'>) => void,
     onTogglePersonalDataLock: (userId: string, fieldId: string) => void,
     onUpsertPersonalDataConfig: (config: PersonalDataFieldConfig) => void,
+    onRemovePersonalDataConfig: (id: string, tripId: string) => void,
     itineraryItems: ItineraryItem[],
     onAddItineraryItem: (item: Omit<ItineraryItem, 'id'>) => void,
     onRemoveItineraryItem: (id: string) => void,
@@ -1660,7 +1749,7 @@ const Dashboard = ({
             case 'financials': return <TripFinancials trip={selectedTrip} user={user} records={tripFinancialRecords} users={allUsers} onAddRecord={onAddFinancialRecord} />;
             case 'itinerary': return <TripItinerary trip={selectedTrip} user={user} items={tripItineraryItems} onAddItem={onAddItineraryItem} onRemoveItem={onRemoveItineraryItem} />;
             case 'documents': return <TripDocuments trip={selectedTrip} user={user} documents={tripDocuments} onAddDocument={onAddDocument} users={allUsers} />;
-            case 'personalData': return <TripPersonalData trip={selectedTrip} user={user} configs={tripPersonalDataConfigs} records={tripPersonalDataRecords} onUpdateRecord={onUpdatePersonalData} onToggleLock={onTogglePersonalDataLock} onUpsertConfig={onUpsertPersonalDataConfig} users={allUsers} />;
+            case 'personalData': return <TripPersonalData trip={selectedTrip} user={user} configs={tripPersonalDataConfigs} records={tripPersonalDataRecords} onUpdateRecord={onUpdatePersonalData} onToggleLock={onTogglePersonalDataLock} onUpsertConfig={onUpsertPersonalDataConfig} onRemoveConfig={onRemovePersonalDataConfig} users={allUsers} />;
             case 'users':
               if (user.role !== 'admin' && !selectedTrip.organizerIds.includes(String(user.id))) {
                 return <p>Nincs jogosultsága a felhasználók kezeléséhez.</p>;

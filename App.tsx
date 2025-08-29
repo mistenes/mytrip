@@ -161,6 +161,10 @@ const App = () => {
       });
   };
 
+  const handleRemovePersonalDataConfig = (id: string, tripId: string) => {
+      setPersonalDataConfigs(prev => prev.filter(c => !(c.id === id && c.tripId === tripId)));
+  };
+
   const handleTogglePersonalDataLock = (userId: string, fieldId: string) => {
       setPersonalDataRecords(prev =>
           prev.map(record => {
@@ -206,11 +210,12 @@ const App = () => {
       onAddFinancialRecord={handleAddFinancialRecord}
       documents={documents}
       onAddDocument={handleAddDocument}
-      personalDataConfigs={personalDataConfigs.filter(c => c.enabled !== false)}
+      personalDataConfigs={personalDataConfigs}
       personalDataRecords={personalDataRecords}
       onUpdatePersonalData={handleUpdatePersonalData}
       onTogglePersonalDataLock={handleTogglePersonalDataLock}
       onUpsertPersonalDataConfig={handleUpsertPersonalDataConfig}
+      onRemovePersonalDataConfig={handleRemovePersonalDataConfig}
       itineraryItems={itineraryItems}
       onAddItineraryItem={handleAddItineraryItem}
       onRemoveItineraryItem={handleRemoveItineraryItem}

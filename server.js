@@ -98,16 +98,15 @@ async function ensureAdminUser() {
 
 async function ensureDefaultFieldConfigs() {
   const defaults = [
-    { field: 'firstName', label: 'Keresztnév', type: 'text', locked: true, order: 1 },
-    { field: 'lastName', label: 'Vezetéknév', type: 'text', locked: true, order: 2 },
-    { field: 'dateOfBirth', label: 'Születési dátum', type: 'date', locked: true, order: 3 },
-    { field: 'middleName', label: 'Középső név', type: 'text', order: 4 },
-    { field: 'passportNumber', label: 'Útlevélszám', type: 'text', order: 5 },
-    { field: 'issueDate', label: 'Kiadás dátuma', type: 'date', order: 6 },
-    { field: 'issuingCountry', label: 'Kibocsátó ország', type: 'text', order: 7 },
-    { field: 'expiryDate', label: 'Lejárati dátum', type: 'date', order: 8 },
-    { field: 'nationality', label: 'Állampolgárság', type: 'text', order: 9 },
-    { field: 'sex', label: 'Nem', type: 'text', order: 10 },
+    { field: 'firstName', label: 'Keresztnév', type: 'text', locked: true, enabled: true, order: 1 },
+    { field: 'lastName', label: 'Vezetéknév', type: 'text', locked: true, enabled: true, order: 2 },
+    { field: 'dateOfBirth', label: 'Születési dátum', type: 'date', locked: true, enabled: true, order: 3 },
+    { field: 'passportNumber', label: 'Útlevélszám', type: 'text', enabled: false, order: 4 },
+    { field: 'issueDate', label: 'Kiadás dátuma', type: 'date', enabled: false, order: 5 },
+    { field: 'issuingCountry', label: 'Kibocsátó ország', type: 'text', enabled: false, order: 6 },
+    { field: 'expiryDate', label: 'Lejárati dátum', type: 'date', enabled: false, order: 7 },
+    { field: 'nationality', label: 'Állampolgárság', type: 'text', enabled: false, order: 8 },
+    { field: 'sex', label: 'Nem', type: 'text', enabled: false, order: 9 },
   ];
   for (const def of defaults) {
     await FieldConfig.findOneAndUpdate(
@@ -401,6 +400,15 @@ app.put('/api/field-config/:field', async (req, res) => {
     { new: true, upsert: true }
   );
   res.json(config);
+});
+
+app.delete('/api/field-config/:field', async (req, res) => {
+  const { tripId } = req.query;
+  if (!tripId) {
+    return res.status(400).json({ message: 'tripId required' });
+  }
+  await FieldConfig.deleteOne({ field: req.params.field, tripId });
+  res.sendStatus(204);
 });
 
 app.put('/api/users/:id/personal-data', async (req, res) => {
