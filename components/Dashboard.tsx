@@ -1265,9 +1265,16 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
     const [localConfigs, setLocalConfigs] = useState<PersonalDataFieldConfig[]>([]);
     const [availableFields, setAvailableFields] = useState<PersonalDataFieldConfig[]>([]);
     useEffect(() => {
-        const tripConfigs = configs.filter(c => c.tripId === trip.id);
-        setLocalConfigs(tripConfigs.filter(c => c.enabled !== false).sort((a, b) => (a.order || 0) - (b.order || 0)));
-        setAvailableFields(tripConfigs.filter(c => c.enabled === false && BASIC_FIELD_IDS.includes(c.id)).sort((a,b)=>(a.order||0)-(b.order||0)));
+        const relevant = configs.filter(c => c.tripId === trip.id || c.tripId === 'default');
+        const map = new Map<string, PersonalDataFieldConfig>();
+        relevant.forEach(c => {
+            if (c.tripId === trip.id || !map.has(c.id)) {
+                map.set(c.id, c);
+            }
+        });
+        const merged = Array.from(map.values());
+        setLocalConfigs(merged.filter(c => c.enabled !== false).sort((a, b) => (a.order || 0) - (b.order || 0)));
+        setAvailableFields(merged.filter(c => c.enabled === false && BASIC_FIELD_IDS.includes(c.id)).sort((a,b)=>(a.order||0)-(b.order||0)));
     }, [configs, trip.id]);
 
     const [newFieldLabel, setNewFieldLabel] = useState('');
@@ -1379,10 +1386,6 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
             .catch(() => {});
     };
 
-    const handleTravelerInput = (userId: string, fieldId: string, value: string) => {
-        onUpdateRecord({ userId, fieldId, value });
-    };
-
     const handleTravelerFileChange = async (userId: string, fieldId: string, file: File | null) => {
         if (file) {
             const fd = new FormData();
@@ -1393,6 +1396,37 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
             }).catch(() => {});
             onUpdateRecord({ userId, fieldId, value: file.name });
         }
+    };
+
+    const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+    const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+
+    const startFieldEdit = (fieldId: string, value: string) => {
+        setEditingFieldId(fieldId);
+        setDraftValues(prev => ({ ...prev, [fieldId]: value }));
+    };
+
+    const handleDraftChange = (fieldId: string, value: string) => {
+        setDraftValues(prev => ({ ...prev, [fieldId]: value }));
+    };
+
+    const saveFieldEdit = (userId: string, fieldId: string) => {
+        const value = draftValues[fieldId] || '';
+        onUpdateRecord({ userId, fieldId, value });
+        setEditingFieldId(null);
+    };
+
+    const [remarkEditing, setRemarkEditing] = useState(false);
+    const [remarkValue, setRemarkValue] = useState('');
+
+    const startRemarkEdit = (value: string) => {
+        setRemarkEditing(true);
+        setRemarkValue(value);
+    };
+
+    const saveRemark = (userId: string) => {
+        onUpdateRecord({ userId, fieldId: 'remark', value: remarkValue });
+        setRemarkEditing(false);
     };
 
     const handlePrint = () => window.print();
@@ -1485,21 +1519,30 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                     <h3>{participant.name}</h3>
                     {localConfigs.map(config => {
                         const record = records.find(r => r.userId === participant.id && r.fieldId === config.id);
+                        const isEditing = editingFieldId === config.id || !record?.value;
+                        const draft = draftValues[config.id] ?? record?.value ?? '';
                         return (
                             <div key={config.id} className={`data-field-group${!record?.value ? ' empty' : ''}`}>
                                 <div className="data-field-header">
                                     <label>{config.label}</label>
-                                    <button
-                                        className="lock-btn"
-                                        onClick={() => onToggleLock(participant.id, config.id)}
-                                        aria-label={record?.isLocked ? 'Mező feloldása' : 'Mező zárolása'}
-                                    >
-                                        {record?.isLocked ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <div className="field-header-actions">
+                                        <button
+                                            className="lock-btn"
+                                            onClick={() => onToggleLock(participant.id, config.id)}
+                                            aria-label={record?.isLocked ? 'Mező feloldása' : 'Mező zárolása'}
+                                        >
+                                            {record?.isLocked ? (
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
+                                            ) : (
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                            )}
+                                        </button>
+                                        {config.type !== 'file' && record?.value && !record?.isLocked && (
+                                            <button className="edit-btn" onClick={() => startFieldEdit(config.id, record.value)} aria-label="Szerkesztés">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
+                                            </button>
                                         )}
-                                    </button>
+                                    </div>
                                 </div>
                                 {config.type === 'file' ? (
                                     <div>
@@ -1513,13 +1556,17 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                                             <input type="file" onChange={e => handleTravelerFileChange(participant.id, config.id, e.target.files ? e.target.files[0] : null)} />
                                         )}
                                     </div>
+                                ) : isEditing && !record?.isLocked ? (
+                                    <div className="field-edit">
+                                        <input type={config.type} value={draft} onChange={e => handleDraftChange(config.id, e.target.value)} />
+                                        <button className="save-btn" onClick={() => saveFieldEdit(participant.id, config.id)} aria-label="Mentés">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                                        </button>
+                                    </div>
                                 ) : (
-                                    <input
-                                        type={config.type}
-                                        defaultValue={record?.value || ''}
-                                        readOnly={record?.isLocked}
-                                        onBlur={e => handleTravelerInput(participant.id, config.id, e.target.value)}
-                                    />
+                                    <div className="field-display">
+                                        <span className={`data-value${record?.value ? '' : ' empty'}`}>{record?.value || ''}</span>
+                                    </div>
                                 )}
                                 <div className="print-row">
                                     <span className="print-label">{config.label}:</span> <span className="print-value">{record?.value}</span>
@@ -1527,6 +1574,33 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                             </div>
                         );
                     })}
+                    {(() => {
+                        const remarkRecord = records.find(r => r.userId === participant.id && r.fieldId === 'remark');
+                        return (
+                            <div className="remark-section">
+                                <div className="data-field-header">
+                                    <label>Megjegyzés</label>
+                                    {remarkEditing ? (
+                                        <button className="save-btn" onClick={() => saveRemark(participant.id)} aria-label="Mentés">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                                        </button>
+                                    ) : (
+                                        <button className="edit-btn" onClick={() => startRemarkEdit(remarkRecord?.value || '')} aria-label="Szerkesztés">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
+                                        </button>
+                                    )}
+                                </div>
+                                {remarkEditing ? (
+                                    <textarea value={remarkValue} onChange={e => setRemarkValue(e.target.value)} />
+                                ) : (
+                                    <p className={`data-value${remarkRecord?.value ? '' : ' empty'}`}>{remarkRecord?.value || ''}</p>
+                                )}
+                                <div className="print-row">
+                                    <span className="print-label">Megjegyzés:</span> <span className="print-value">{remarkRecord?.value}</span>
+                                </div>
+                            </div>
+                        );
+                    })()}
                     <div className="personal-data-actions">
                         <button className="btn btn-secondary" onClick={handlePrint}>Nyomtatás</button>
                         <button className="btn btn-secondary" onClick={handlePrint}>PDF mentése</button>

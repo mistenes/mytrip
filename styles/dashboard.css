@@ -459,17 +459,52 @@
     font-size: 0.9rem;
 }
 
-.lock-btn {
+.field-header-actions {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+.lock-btn,
+.edit-btn,
+.save-btn {
     background: none;
     border: none;
     cursor: pointer;
     color: var(--color-text-secondary);
     padding: 0.25rem;
-    border-radius: 50%;
+    border-radius: 4px;
 }
-.lock-btn:hover {
+
+.lock-btn:hover,
+.edit-btn:hover,
+.save-btn:hover {
     background-color: var(--color-surface-tertiary);
     color: var(--color-text-primary);
+}
+
+.field-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.field-edit {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.remark-section {
+    margin-top: 1rem;
+}
+
+.remark-section textarea {
+    width: 100%;
+    min-height: 4rem;
+    padding: 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
 }
 
 .data-value {
@@ -862,6 +897,10 @@ input[readonly] {
     .data-field-group input,
     .data-field-group .file-link,
     .data-field-group .remove-file {
+        display: none !important;
+    }
+
+    .remark-section textarea {
         display: none !important;
     }
 
