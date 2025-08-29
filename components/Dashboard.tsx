@@ -1398,7 +1398,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                     {localConfigs.map(config => {
                         const record = records.find(r => r.userId === participant.id && r.fieldId === config.id);
                         return (
-                            <div key={config.id} className="data-field-group">
+                            <div key={config.id} className={`data-field-group${!record?.value ? ' empty' : ''}`}>
                                 <div className="data-field-header">
                                     <label>{config.label}</label>
                                     <button
@@ -1431,9 +1431,11 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                                         defaultValue={record?.value || ''}
                                         readOnly={record?.isLocked}
                                         onBlur={e => handleTravelerInput(participant.id, config.id, e.target.value)}
-                                        className={!record?.value ? 'empty' : ''}
                                     />
                                 )}
+                                <div className="print-row">
+                                    <span className="print-label">{config.label}:</span> <span className="print-value">{record?.value}</span>
+                                </div>
                             </div>
                         );
                     })}
