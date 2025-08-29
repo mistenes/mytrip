@@ -7,6 +7,7 @@ export interface User {
   name: string;
   role: Role;
   mustChangePassword?: boolean;
+  token?: string;
 }
 
 export interface Trip {

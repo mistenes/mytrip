@@ -40,6 +40,18 @@ const App = () => {
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'auto');
 
   useEffect(() => {
+    const token = localStorage.getItem('sessionToken');
+    if (token) {
+      fetch(`${API_BASE}/api/session`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => (res.ok ? res.json() : Promise.reject()))
+        .then(data => setCurrentUser({ ...data, token }))
+        .catch(() => localStorage.removeItem('sessionToken'));
+    }
+  }, []);
+
+  useEffect(() => {
     const applyTheme = (t: Theme) => {
         if (t === 'auto') {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -95,9 +107,17 @@ const App = () => {
   
   const handleLogin = (user: User) => {
     setCurrentUser(user);
+    if (user.token) {
+      localStorage.setItem('sessionToken', user.token);
+    }
   };
 
   const handleLogout = () => {
+    const token = localStorage.getItem('sessionToken');
+    if (token) {
+      fetch(`${API_BASE}/api/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+      localStorage.removeItem('sessionToken');
+    }
     setCurrentUser(null);
   };
   

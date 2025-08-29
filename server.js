@@ -39,6 +39,8 @@ const userSchema = new mongoose.Schema({
   personalData: [personalDataSchema],
   passportPhoto: String,
   mustChangePassword: { type: Boolean, default: false },
+  sessionToken: String,
+  sessionExpiresAt: Date,
 }, { timestamps: true });
 
 const fieldConfigSchema = new mongoose.Schema({
@@ -276,7 +278,30 @@ app.post('/api/login', async (req, res) => {
   if (!user) return res.status(401).json({ message: 'Invalid credentials' });
   const hash = crypto.createHash('sha256').update(password).digest('hex');
   if (user.passwordHash !== hash) return res.status(401).json({ message: 'Invalid credentials' });
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
+  user.sessionToken = token;
+  user.sessionExpiresAt = expiresAt;
+  await user.save();
+  res.json({ id: user._id, role: user.role, name: user.name || user.username, mustChangePassword: user.mustChangePassword, token });
+});
+
+app.get('/api/session', async (req, res) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!token) return res.sendStatus(401);
+  const user = await User.findOne({ sessionToken: token, sessionExpiresAt: { $gt: new Date() } });
+  if (!user) return res.sendStatus(401);
   res.json({ id: user._id, role: user.role, name: user.name || user.username, mustChangePassword: user.mustChangePassword });
+});
+
+app.post('/api/logout', async (req, res) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (token) {
+    await User.updateOne({ sessionToken: token }, { $unset: { sessionToken: 1, sessionExpiresAt: 1 } });
+  }
+  res.sendStatus(204);
 });
 
 app.post('/api/users/:id/password', async (req, res) => {
@@ -293,7 +318,7 @@ app.post('/api/users/:id/password', async (req, res) => {
 });
 
 app.get('/api/users', async (_req, res) => {
-  const users = await User.find();
+  const users = await User.find({}, '-passwordHash -sessionToken -sessionExpiresAt');
   res.json(users);
 });
 
