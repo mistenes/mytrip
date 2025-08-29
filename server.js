@@ -401,6 +401,17 @@ app.post('/api/trips', async (req, res) => {
   res.status(201).json(trip);
 });
 
+app.put('/api/trips/:id', async (req, res) => {
+  const { startDate, endDate } = req.body;
+  const trip = await Trip.findByIdAndUpdate(
+    req.params.id,
+    { startDate, endDate },
+    { new: true }
+  );
+  if (!trip) return res.sendStatus(404);
+  res.json(trip);
+});
+
 app.post('/api/trips/:id/organizers', async (req, res) => {
   const { userId } = req.body;
   await Trip.findByIdAndUpdate(req.params.id, { $addToSet: { organizerIds: userId } });

@@ -803,6 +803,12 @@ input[readonly] {
 .modal-actions { margin-top: 2rem; display: flex; justify-content: flex-end; gap: 1rem; }
 .modal-actions .btn { width: auto; }
 
+.trip-settings .settings-actions {
+    margin-top: 1rem;
+    display: flex;
+    gap: 1rem;
+}
+
 /* --- Theme Switcher --- */
 .theme-switcher {
     display: flex;
