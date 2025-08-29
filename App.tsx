@@ -3,13 +3,19 @@ import LoginPage from "./components/LoginPage";
 import SignupPage from "./components/SignupPage";
 import Dashboard from "./components/Dashboard";
 import ChangePasswordPage from "./components/ChangePasswordPage";
+import ProblemReportButton from "./components/ProblemReportButton";
 import { INITIAL_TRIPS, INITIAL_FINANCIAL_RECORDS, INITIAL_DOCUMENTS, DEFAULT_PERSONAL_DATA_FIELD_CONFIGS, INITIAL_PERSONAL_DATA_RECORDS, INITIAL_ITINERARY_ITEMS } from "./mockData";
 import { User, Trip, FinancialRecord, Document, PersonalDataRecord, PersonalDataFieldConfig, ItineraryItem, Theme } from "./types";
 import { API_BASE } from "./api";
 
 const App = () => {
   if (window.location.pathname === '/signup') {
-    return <SignupPage />;
+    return (
+      <>
+        <SignupPage />
+        <ProblemReportButton />
+      </>
+    );
   }
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [trips, setTrips] = useState<Trip[]>(INITIAL_TRIPS);
@@ -192,36 +198,49 @@ const App = () => {
   };
   
   if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <>
+        <LoginPage onLogin={handleLogin} />
+        <ProblemReportButton />
+      </>
+    );
   }
 
   if (currentUser.mustChangePassword) {
-    return <ChangePasswordPage user={currentUser} onSuccess={() => setCurrentUser({ ...currentUser, mustChangePassword: false })} />;
+    return (
+      <>
+        <ChangePasswordPage user={currentUser} onSuccess={() => setCurrentUser({ ...currentUser, mustChangePassword: false })} />
+        <ProblemReportButton />
+      </>
+    );
   }
 
   return (
-    <Dashboard
-      user={currentUser}
-      trips={trips}
-      refreshTrips={refreshTrips}
-      onLogout={handleLogout}
-      onCreateTrip={handleCreateTrip}
-      financialRecords={financialRecords}
-      onAddFinancialRecord={handleAddFinancialRecord}
-      documents={documents}
-      onAddDocument={handleAddDocument}
-      personalDataConfigs={personalDataConfigs}
-      personalDataRecords={personalDataRecords}
-      onUpdatePersonalData={handleUpdatePersonalData}
-      onTogglePersonalDataLock={handleTogglePersonalDataLock}
-      onUpsertPersonalDataConfig={handleUpsertPersonalDataConfig}
-      onRemovePersonalDataConfig={handleRemovePersonalDataConfig}
-      itineraryItems={itineraryItems}
-      onAddItineraryItem={handleAddItineraryItem}
-      onRemoveItineraryItem={handleRemoveItineraryItem}
-      theme={theme}
-      onThemeChange={setTheme}
-    />
+    <>
+      <Dashboard
+        user={currentUser}
+        trips={trips}
+        refreshTrips={refreshTrips}
+        onLogout={handleLogout}
+        onCreateTrip={handleCreateTrip}
+        financialRecords={financialRecords}
+        onAddFinancialRecord={handleAddFinancialRecord}
+        documents={documents}
+        onAddDocument={handleAddDocument}
+        personalDataConfigs={personalDataConfigs}
+        personalDataRecords={personalDataRecords}
+        onUpdatePersonalData={handleUpdatePersonalData}
+        onTogglePersonalDataLock={handleTogglePersonalDataLock}
+        onUpsertPersonalDataConfig={handleUpsertPersonalDataConfig}
+        onRemovePersonalDataConfig={handleRemovePersonalDataConfig}
+        itineraryItems={itineraryItems}
+        onAddItineraryItem={handleAddItineraryItem}
+        onRemoveItineraryItem={handleRemoveItineraryItem}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
+      <ProblemReportButton />
+    </>
   );
 };
 

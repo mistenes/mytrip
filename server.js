@@ -152,6 +152,41 @@ async function sendInvitationEmail(email, signupUrl) {
   }
 }
 
+async function sendProblemReportEmail(name, fromEmail, message) {
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  if (!apiKey || !senderEmail) {
+    console.error('Brevo email not sent: missing BREVO_API_KEY or BREVO_SENDER_EMAIL');
+    return;
+  }
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify({
+        sender: {
+          email: senderEmail,
+          name: process.env.BREVO_SENDER_NAME || 'myTrip'
+        },
+        to: [{ email: 'mistenes@mistenes.com' }],
+        subject: 'HYCA travelportal problem',
+        htmlContent: `<p>Name: ${name}</p><p>Email: ${fromEmail}</p><p>Message:</p><p>${message}</p>`
+      })
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      console.error('Brevo error', res.status, text);
+    } else {
+      console.log('Brevo response', res.status, text);
+    }
+  } catch (err) {
+    console.error('Email send failed', err);
+  }
+}
+
 const upload = multer({ dest: 'uploads/' });
 app.use('/uploads', express.static('uploads'));
 
@@ -160,6 +195,12 @@ app.use(express.static(distPath));
 
 app.get('/health', (_req, res) => {
   res.type('text/plain').send('myTrip server: OK');
+});
+
+app.post('/api/report-problem', async (req, res) => {
+  const { name, email, message } = req.body;
+  await sendProblemReportEmail(name, email, message);
+  res.json({ message: 'Report sent' });
 });
 
 app.post('/api/invitations', async (req, res) => {
