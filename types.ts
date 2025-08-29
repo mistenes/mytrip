@@ -1,5 +1,5 @@
 export type Role = 'admin' | 'organizer' | 'traveler';
-export type TripView = 'summary' | 'financials' | 'itinerary' | 'documents' | 'personalData' | 'users';
+export type TripView = 'summary' | 'financials' | 'itinerary' | 'documents' | 'personalData' | 'users' | 'settings';
 export type Theme = 'light' | 'dark' | 'auto';
 
 export interface User {

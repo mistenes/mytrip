@@ -217,6 +217,25 @@ const TripUserManagement = ({ trip, users, currentUser, onChange }: { trip: Trip
   );
 };
 
+const TripSettings = ({ trip, user, onDeleted }: { trip: Trip; user: User; onDeleted: () => void }) => {
+  const canDelete = user.role === 'admin' || (user.role === 'organizer' && trip.organizerIds.includes(String(user.id)));
+  if (!canDelete) {
+    return <p>Nincs jogosultsága a beállításokhoz.</p>;
+  }
+  const handleDelete = async () => {
+    if (!window.confirm('Biztosan törli az utazást?')) return;
+    if (!window.confirm('A művelet nem vonható vissza. Folytatja?')) return;
+    await fetch(`${API_BASE}/api/trips/${trip.id}`, { method: 'DELETE' });
+    onDeleted();
+  };
+  return (
+    <div className="trip-settings">
+      <h2>Beállítások: {trip.name}</h2>
+      <button className="btn btn-danger" onClick={handleDelete}>Utazás törlése</button>
+    </div>
+  );
+};
+
 const InviteUserModal = ({
   isOpen,
   onClose,
@@ -1667,6 +1686,7 @@ const Sidebar = ({
                               ];
                               if (userRole === 'admin' || (userRole === 'organizer' && trip.organizerIds.includes(userId))) {
                                 tripNavItems.push({ key: 'users', label: 'Felhasználók' });
+                                tripNavItems.push({ key: 'settings', label: 'Beállítások' });
                               }
                               return (
                                 <li key={trip.id} className={`trip-item ${trip.id === selectedTripId ? 'active' : ''}`}>
@@ -1838,6 +1858,8 @@ const Dashboard = ({
                 return <p>Nincs jogosultsága a felhasználók kezeléséhez.</p>;
               }
               return <TripUserManagement trip={selectedTrip} users={allUsers} currentUser={user} onChange={() => { refreshTrips(); setUserRefresh(v => v + 1); }} />;
+            case 'settings':
+              return <TripSettings trip={selectedTrip} user={user} onDeleted={() => { setSelectedTripId(null); refreshTrips(); }} />;
             default: return <h2>Válasszon nézetet</h2>;
         }
     }

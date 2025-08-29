@@ -428,6 +428,16 @@ app.delete('/api/trips/:id/travelers/:userId', async (req, res) => {
   res.sendStatus(204);
 });
 
+app.delete('/api/trips/:id', async (req, res) => {
+  const { id } = req.params;
+  await Promise.all([
+    Trip.findByIdAndDelete(id),
+    FieldConfig.deleteMany({ tripId: id }),
+    Invitation.deleteMany({ tripId: id }),
+  ]);
+  res.sendStatus(204);
+});
+
 app.get('/api/field-config', async (_req, res) => {
   const configs = await FieldConfig.find().sort({ order: 1 });
   res.json(configs);
