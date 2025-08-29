@@ -219,13 +219,15 @@ const TripUserManagement = ({ trip, users, currentUser, onChange }: { trip: Trip
 
 const TripSettings = ({ trip, user, onDeleted, onUpdated }: { trip: Trip; user: User; onDeleted: () => void; onUpdated: () => void }) => {
   const canManage = user.role === 'admin' || (user.role === 'organizer' && trip.organizerIds.includes(String(user.id)));
+  const [name, setName] = useState(trip.name);
   const [startDate, setStartDate] = useState(trip.startDate);
   const [endDate, setEndDate] = useState(trip.endDate);
 
   useEffect(() => {
+    setName(trip.name);
     setStartDate(trip.startDate);
     setEndDate(trip.endDate);
-  }, [trip.startDate, trip.endDate]);
+  }, [trip.name, trip.startDate, trip.endDate]);
 
   if (!canManage) {
     return <p>Nincs jogosultsága a beállításokhoz.</p>;
@@ -235,7 +237,7 @@ const TripSettings = ({ trip, user, onDeleted, onUpdated }: { trip: Trip; user: 
     await fetch(`${API_BASE}/api/trips/${trip.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ startDate, endDate })
+      body: JSON.stringify({ name, startDate, endDate })
     });
     onUpdated();
   };
@@ -249,7 +251,11 @@ const TripSettings = ({ trip, user, onDeleted, onUpdated }: { trip: Trip; user: 
 
   return (
     <div className="trip-settings">
-      <h2>Beállítások: {trip.name}</h2>
+      <h2>Beállítások: {name}</h2>
+      <div className="form-group">
+        <label htmlFor="tripName">Utazás neve</label>
+        <input id="tripName" type="text" value={name} onChange={e => setName(e.target.value)} />
+      </div>
       <div className="form-group">
         <label htmlFor="startDate">Kezdés dátuma</label>
         <input id="startDate" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />

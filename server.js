@@ -402,10 +402,10 @@ app.post('/api/trips', async (req, res) => {
 });
 
 app.put('/api/trips/:id', async (req, res) => {
-  const { startDate, endDate } = req.body;
+  const { name, startDate, endDate } = req.body;
   const trip = await Trip.findByIdAndUpdate(
     req.params.id,
-    { startDate, endDate },
+    { name, startDate, endDate },
     { new: true }
   );
   if (!trip) return res.sendStatus(404);
