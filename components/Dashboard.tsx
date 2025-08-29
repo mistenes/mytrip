@@ -1207,6 +1207,12 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         const handleBlur = (fieldId: string) => {
             onUpdateRecord({ userId: user.id, fieldId, value: formData[fieldId] });
         };
+
+        const handleSave = () => {
+            Object.entries(formData).forEach(([fieldId, value]) => {
+                onUpdateRecord({ userId: user.id, fieldId, value });
+            });
+        };
         
         return (
             <div className="personal-data-page">
@@ -1245,6 +1251,9 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                                 </div>
                             )
                         })}
+                    </div>
+                    <div className="personal-data-actions">
+                        <button type="button" className="btn btn-primary" onClick={handleSave}>Mentés</button>
                     </div>
                 </form>
             </div>

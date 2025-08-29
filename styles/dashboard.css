@@ -350,6 +350,12 @@
     gap: 1.5rem;
 }
 
+.personal-data-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
 .field-manager {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
