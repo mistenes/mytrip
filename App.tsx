@@ -3,13 +3,19 @@ import LoginPage from "./components/LoginPage";
 import SignupPage from "./components/SignupPage";
 import Dashboard from "./components/Dashboard";
 import ChangePasswordPage from "./components/ChangePasswordPage";
+import ProblemReportButton from "./components/ProblemReportButton";
 import { INITIAL_TRIPS, INITIAL_FINANCIAL_RECORDS, INITIAL_DOCUMENTS, DEFAULT_PERSONAL_DATA_FIELD_CONFIGS, INITIAL_PERSONAL_DATA_RECORDS, INITIAL_ITINERARY_ITEMS } from "./mockData";
 import { User, Trip, FinancialRecord, Document, PersonalDataRecord, PersonalDataFieldConfig, ItineraryItem, Theme } from "./types";
 import { API_BASE } from "./api";
 
 const App = () => {
   if (window.location.pathname === '/signup') {
-    return <SignupPage />;
+    return (
+      <>
+        <SignupPage />
+        <ProblemReportButton />
+      </>
+    );
   }
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [trips, setTrips] = useState<Trip[]>(INITIAL_TRIPS);
@@ -38,6 +44,18 @@ const App = () => {
   const [personalDataConfigs, setPersonalDataConfigs] = useState<PersonalDataFieldConfig[]>(DEFAULT_PERSONAL_DATA_FIELD_CONFIGS);
   const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>(INITIAL_ITINERARY_ITEMS);
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'auto');
+
+  useEffect(() => {
+    const token = localStorage.getItem('sessionToken');
+    if (token) {
+      fetch(`${API_BASE}/api/session`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => (res.ok ? res.json() : Promise.reject()))
+        .then(data => setCurrentUser({ ...data, token }))
+        .catch(() => localStorage.removeItem('sessionToken'));
+    }
+  }, []);
 
   useEffect(() => {
     const applyTheme = (t: Theme) => {
@@ -95,9 +113,17 @@ const App = () => {
   
   const handleLogin = (user: User) => {
     setCurrentUser(user);
+    if (user.token) {
+      localStorage.setItem('sessionToken', user.token);
+    }
   };
 
   const handleLogout = () => {
+    const token = localStorage.getItem('sessionToken');
+    if (token) {
+      fetch(`${API_BASE}/api/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+      localStorage.removeItem('sessionToken');
+    }
     setCurrentUser(null);
   };
   
@@ -114,6 +140,14 @@ const App = () => {
       const newDoc: Document = { ...newDocData, id: Date.now() };
       setDocuments(prev => [...prev, newDoc]);
   }
+
+  const handleUpdateDocument = (updated: Document) => {
+      setDocuments(prev => prev.map(doc => doc.id === updated.id ? updated : doc));
+  };
+
+  const handleRemoveDocument = (id: string) => {
+      setDocuments(prev => prev.filter(doc => doc.id !== id));
+  };
 
   const handleUpdatePersonalData = (updatedRecord: Omit<PersonalDataRecord, 'isLocked'>) => {
       setPersonalDataRecords(prev => {
@@ -139,6 +173,10 @@ const App = () => {
           const updated = idx > -1 ? [...prev.slice(0, idx), config, ...prev.slice(idx + 1)] : [...prev, config];
           return [...updated].sort((a,b)=>(a.order||0)-(b.order||0));
       });
+  };
+
+  const handleRemovePersonalDataConfig = (id: string, tripId: string) => {
+      setPersonalDataConfigs(prev => prev.filter(c => !(c.id === id && c.tripId === tripId)));
   };
 
   const handleTogglePersonalDataLock = (userId: string, fieldId: string) => {
@@ -168,35 +206,51 @@ const App = () => {
   };
   
   if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <>
+        <LoginPage onLogin={handleLogin} />
+        <ProblemReportButton />
+      </>
+    );
   }
 
   if (currentUser.mustChangePassword) {
-    return <ChangePasswordPage user={currentUser} onSuccess={() => setCurrentUser({ ...currentUser, mustChangePassword: false })} />;
+    return (
+      <>
+        <ChangePasswordPage user={currentUser} onSuccess={() => setCurrentUser({ ...currentUser, mustChangePassword: false })} />
+        <ProblemReportButton />
+      </>
+    );
   }
 
   return (
-    <Dashboard
-      user={currentUser}
-      trips={trips}
-      refreshTrips={refreshTrips}
-      onLogout={handleLogout}
-      onCreateTrip={handleCreateTrip}
-      financialRecords={financialRecords}
-      onAddFinancialRecord={handleAddFinancialRecord}
-      documents={documents}
-      onAddDocument={handleAddDocument}
-      personalDataConfigs={personalDataConfigs.filter(c => c.enabled !== false)}
-      personalDataRecords={personalDataRecords}
-      onUpdatePersonalData={handleUpdatePersonalData}
-      onTogglePersonalDataLock={handleTogglePersonalDataLock}
-      onUpsertPersonalDataConfig={handleUpsertPersonalDataConfig}
-      itineraryItems={itineraryItems}
-      onAddItineraryItem={handleAddItineraryItem}
-      onRemoveItineraryItem={handleRemoveItineraryItem}
-      theme={theme}
-      onThemeChange={setTheme}
-    />
+    <>
+      <Dashboard
+        user={currentUser}
+        trips={trips}
+        refreshTrips={refreshTrips}
+        onLogout={handleLogout}
+        onCreateTrip={handleCreateTrip}
+        financialRecords={financialRecords}
+        onAddFinancialRecord={handleAddFinancialRecord}
+        documents={documents}
+        onAddDocument={handleAddDocument}
+        onUpdateDocument={handleUpdateDocument}
+        onRemoveDocument={handleRemoveDocument}
+        personalDataConfigs={personalDataConfigs}
+        personalDataRecords={personalDataRecords}
+        onUpdatePersonalData={handleUpdatePersonalData}
+        onTogglePersonalDataLock={handleTogglePersonalDataLock}
+        onUpsertPersonalDataConfig={handleUpsertPersonalDataConfig}
+        onRemovePersonalDataConfig={handleRemovePersonalDataConfig}
+        itineraryItems={itineraryItems}
+        onAddItineraryItem={handleAddItineraryItem}
+        onRemoveItineraryItem={handleRemoveItineraryItem}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
+      <ProblemReportButton />
+    </>
   );
 };
 

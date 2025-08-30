@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { API_BASE } from "../api";
+import "../styles/login.css";
 
 const SignupPage = () => {
   const params = new URLSearchParams(window.location.search);

@@ -1,0 +1,93 @@
+/* Trip user management styling */
+.trip-user-management .assign-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  align-items: center;
+}
+
+.trip-user-management select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.trip-users-section ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.trip-users-section li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-surface);
+  margin-bottom: 0.5rem;
+}
+
+.user-management .user-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+.user-management .user-table th,
+.user-management .user-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+.invite-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.user-management .user-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.user-management .user-tile {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 2px 4px var(--color-shadow);
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.user-management .user-tile.selected {
+  border-color: var(--color-primary);
+  background-color: var(--color-surface-secondary);
+}
+
+.user-management .user-name {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.user-management .user-role {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: var(--color-text-on-primary);
+  background-color: var(--color-secondary);
+}
+
+.user-management .user-tile.admin .user-role {
+  background-color: #6f42c1;
+}
+
+.user-management .user-tile.organizer .user-role {
+  background-color: var(--color-primary);
+}
+
+.user-management .user-tile.traveler .user-role {
+  background-color: var(--color-secondary);
+}

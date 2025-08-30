@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { User } from "../types";
 import { API_BASE } from "../api";
+import "../styles/login.css";
 
 const LoginPage = ({ onLogin }: { onLogin: (user: User) => void }) => {
   const [username, setUsername] = useState('');

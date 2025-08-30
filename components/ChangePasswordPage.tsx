@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { User } from "../types";
 import { API_BASE } from "../api";
+import "../styles/login.css";
 
 const ChangePasswordPage = ({ user, onSuccess }: { user: User; onSuccess: () => void }) => {
   const [currentPassword, setCurrentPassword] = useState('');

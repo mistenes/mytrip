@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { API_BASE } from "../api";
 import { User, Trip, FinancialRecord, Document, PersonalDataFieldConfig, PersonalDataRecord, ItineraryItem, Role, TripView, Theme } from "../types";
+import "../styles/dashboard.css";
+import "../styles/user-management.css";
 
 const ThemeSwitcher = ({ theme, onThemeChange }: { theme: Theme, onThemeChange: (theme: Theme) => void }) => (
     <div className="theme-switcher">
@@ -16,13 +18,10 @@ const ThemeSwitcher = ({ theme, onThemeChange }: { theme: Theme, onThemeChange: 
     </div>
 );
 
-const Header = ({ user, onLogout, onToggleSidebar, showHamburger, theme, onThemeChange }: { 
-    user: User; 
-    onLogout: () => void; 
+const Header = ({ user, onToggleSidebar, showHamburger }: {
+    user: User;
     onToggleSidebar: () => void;
     showHamburger: boolean;
-    theme: Theme;
-    onThemeChange: (theme: Theme) => void;
 }) => (
   <header className="app-header">
     <div className="header-left">
@@ -34,9 +33,7 @@ const Header = ({ user, onLogout, onToggleSidebar, showHamburger, theme, onTheme
          <h1 className="logo">myTrip</h1>
     </div>
     <div className="user-info">
-      <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
       <span>Üdv, <strong>{user.name}</strong> ({user.role})</span>
-      <button onClick={onLogout} className="btn btn-logout">Kijelentkezés</button>
     </div>
   </header>
 );
@@ -210,6 +207,61 @@ const TripUserManagement = ({ trip, users, currentUser, onChange }: { trip: Trip
             <button className="btn btn-secondary btn-small" onClick={addTraveler}>Hozzáadás</button>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+const TripSettings = ({ trip, user, onDeleted, onUpdated }: { trip: Trip; user: User; onDeleted: () => void; onUpdated: () => void }) => {
+  const canManage = user.role === 'admin' || (user.role === 'organizer' && trip.organizerIds.includes(String(user.id)));
+  const [name, setName] = useState(trip.name);
+  const [startDate, setStartDate] = useState(trip.startDate);
+  const [endDate, setEndDate] = useState(trip.endDate);
+
+  useEffect(() => {
+    setName(trip.name);
+    setStartDate(trip.startDate);
+    setEndDate(trip.endDate);
+  }, [trip.name, trip.startDate, trip.endDate]);
+
+  if (!canManage) {
+    return <p>Nincs jogosultsága a beállításokhoz.</p>;
+  }
+
+  const handleSave = async () => {
+    await fetch(`${API_BASE}/api/trips/${trip.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, startDate, endDate })
+    });
+    onUpdated();
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Biztosan törli az utazást?')) return;
+    if (!window.confirm('A művelet nem vonható vissza. Folytatja?')) return;
+    await fetch(`${API_BASE}/api/trips/${trip.id}`, { method: 'DELETE' });
+    onDeleted();
+  };
+
+  return (
+    <div className="trip-settings">
+      <h2>Beállítások: {name}</h2>
+      <div className="form-group">
+        <label htmlFor="tripName">Utazás neve</label>
+        <input id="tripName" type="text" value={name} onChange={e => setName(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label htmlFor="startDate">Kezdés dátuma</label>
+        <input id="startDate" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label htmlFor="endDate">Befejezés dátuma</label>
+        <input id="endDate" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+      </div>
+      <div className="settings-actions">
+        <button className="btn btn-primary" onClick={handleSave}>Mentés</button>
+        <button className="btn btn-danger" onClick={handleDelete}>Utazás törlése</button>
       </div>
     </div>
   );
@@ -943,15 +995,24 @@ const TripItinerary = ({ trip, user, items, onAddItem, onRemoveItem }: {
     );
 };
 
-const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
+const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants, categories, onAddCategory }: {
     isOpen: boolean;
     onClose: () => void;
-    onUpload: (doc: Omit<Document, 'id' | 'tripId' | 'uploadDate' | 'fileUrl'>) => void;
+    onUpload: (doc: Omit<Document, 'id' | 'tripId' | 'uploadDate'>) => void;
     tripParticipants: User[];
+    categories: string[];
+    onAddCategory: (name: string) => void;
 }) => {
     const [name, setName] = useState('');
     const [category, setCategory] = useState('');
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>(['all']);
+    const [file, setFile] = useState<File | null>(null);
+
+    useEffect(() => {
+        if (!category && categories.length > 0) {
+            setCategory(categories[0]);
+        }
+    }, [categories, category]);
 
     if (!isOpen) return null;
 
@@ -961,28 +1022,34 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
             setSelectedUserIds(['all']);
         } else if (options.length > 1 && options.includes('all')) {
             setSelectedUserIds(options.filter(id => id !== 'all'));
-        }
-        else {
+        } else {
             setSelectedUserIds(options);
         }
+    };
+
+    const handleAddCategoryClick = () => {
+        const newCat = prompt('Új kategória neve');
+        if (newCat) onAddCategory(newCat);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!name || !category) {
-            alert("Kérjük, adjon nevet és kategóriát a dokumentumnak.");
+            alert('Kérjük, adjon nevet és kategóriát a dokumentumnak.');
             return;
         }
 
-        const visibleTo: 'all' | number[] = selectedUserIds.includes('all')
+        const visibleTo: 'all' | string[] = selectedUserIds.includes('all')
             ? 'all'
-            : selectedUserIds.map(Number);
+            : selectedUserIds;
+        const fileUrl = file ? URL.createObjectURL(file) : '#';
 
-        onUpload({ name, category, visibleTo });
+        onUpload({ name, category, visibleTo, fileUrl });
         onClose();
         setName('');
-        setCategory('');
+        setCategory(categories[0] || '');
         setSelectedUserIds(['all']);
+        setFile(null);
     };
 
     return (
@@ -996,7 +1063,12 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
                     </div>
                     <div className="form-group">
                         <label htmlFor="docCategory">Kategória</label>
-                        <input id="docCategory" type="text" value={category} onChange={e => setCategory(e.target.value)} placeholder="pl. Repjegyek, Szállás" required />
+                        <div className="category-select">
+                            <select id="docCategory" value={category} onChange={e => setCategory(e.target.value)} required>
+                                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <button type="button" onClick={handleAddCategoryClick} className="btn btn-secondary btn-small">+</button>
+                        </div>
                     </div>
                     <div className="form-group">
                         <label htmlFor="docVisibleTo">Láthatóság</label>
@@ -1004,11 +1076,11 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
                             <option value="all">Mindenki</option>
                             {tripParticipants.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
                         </select>
-                         <small>Több felhasználó kijelöléséhez tartsa lenyomva a Ctrl/Cmd billentyűt.</small>
+                        <small>Több felhasználó kijelöléséhez tartsa lenyomva a Ctrl/Cmd billentyűt.</small>
                     </div>
                     <div className="form-group">
                         <label htmlFor="docFile">Fájl kiválasztása</label>
-                        <input id="docFile" type="file" />
+                        <input id="docFile" type="file" onChange={e => setFile(e.target.files?.[0] || null)} />
                     </div>
                     <div className="modal-actions">
                         <button type="button" onClick={onClose} className="btn btn-secondary">Mégse</button>
@@ -1020,31 +1092,143 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
     );
 };
 
-const TripDocuments = ({ trip, user, documents, onAddDocument, users }: {
+const EditDocumentModal = ({ doc, isOpen, onClose, onSave, tripParticipants, categories, onAddCategory }: {
+    doc: Document;
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (doc: Document) => void;
+    tripParticipants: User[];
+    categories: string[];
+    onAddCategory: (name: string) => void;
+}) => {
+    const [name, setName] = useState(doc.name);
+    const [category, setCategory] = useState(doc.category);
+    const [selectedUserIds, setSelectedUserIds] = useState<string[]>(Array.isArray(doc.visibleTo) ? doc.visibleTo : ['all']);
+    const [fileUrl, setFileUrl] = useState(doc.fileUrl);
+
+    useEffect(() => {
+        setName(doc.name);
+        setCategory(doc.category);
+        setSelectedUserIds(Array.isArray(doc.visibleTo) ? doc.visibleTo : ['all']);
+        setFileUrl(doc.fileUrl);
+    }, [doc]);
+
+    if (!isOpen) return null;
+
+    const handleUserSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const options = Array.from(e.target.selectedOptions, option => option.value);
+        if (options.includes('all') && selectedUserIds.length < options.length) {
+            setSelectedUserIds(['all']);
+        } else if (options.length > 1 && options.includes('all')) {
+            setSelectedUserIds(options.filter(id => id !== 'all'));
+        } else {
+            setSelectedUserIds(options);
+        }
+    };
+
+    const handleAddCategoryClick = () => {
+        const newCat = prompt('Új kategória neve');
+        if (newCat) onAddCategory(newCat);
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const f = e.target.files?.[0];
+        if (f) {
+            setFileUrl(URL.createObjectURL(f));
+        }
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const visibleTo: 'all' | string[] = selectedUserIds.includes('all') ? 'all' : selectedUserIds;
+        onSave({ ...doc, name, category, visibleTo, fileUrl });
+    };
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <h2>Dokumentum szerkesztése</h2>
+                <form onSubmit={handleSubmit}>
+                    <div className="form-group">
+                        <label htmlFor="editDocName">Dokumentum neve</label>
+                        <input id="editDocName" type="text" value={name} onChange={e => setName(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="editDocCategory">Kategória</label>
+                        <div className="category-select">
+                            <select id="editDocCategory" value={category} onChange={e => setCategory(e.target.value)} required>
+                                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <button type="button" onClick={handleAddCategoryClick} className="btn btn-secondary btn-small">+</button>
+                        </div>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="editDocVisibleTo">Láthatóság</label>
+                        <select id="editDocVisibleTo" multiple value={selectedUserIds} onChange={handleUserSelect} className="multi-select">
+                            <option value="all">Mindenki</option>
+                            {tripParticipants.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+                        </select>
+                        <small>Több felhasználó kijelöléséhez tartsa lenyomva a Ctrl/Cmd billentyűt.</small>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="editDocFile">Fájl cseréje</label>
+                        <input id="editDocFile" type="file" onChange={handleFileChange} />
+                    </div>
+                    <div className="modal-actions">
+                        <button type="button" onClick={onClose} className="btn btn-secondary">Mégse</button>
+                        <button type="submit" className="btn btn-primary">Mentés</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const TripDocuments = ({ trip, user, documents, onAddDocument, onUpdateDocument, onRemoveDocument, users }: {
     trip: Trip;
     user: User;
     documents: Document[];
     onAddDocument: (doc: Omit<Document, 'id'>) => void;
+    onUpdateDocument: (doc: Document) => void;
+    onRemoveDocument: (id: string) => void;
     users: User[];
 }) => {
     const [isUploadModalOpen, setUploadModalOpen] = useState(false);
+    const [editingDoc, setEditingDoc] = useState<Document | null>(null);
+    const [categories, setCategories] = useState<string[]>(['Plane tickets', 'Admission Tickets', 'Boarding Passes']);
     type SortableKeys = 'name' | 'category' | 'uploadDate';
     const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' } | null>({ key: 'uploadDate', direction: 'desc' });
-    
+
     const tripParticipants = useMemo(() => {
         const participantIds = new Set([...trip.organizerIds, ...trip.travelerIds]);
         return users.filter(u => participantIds.has(u.id));
     }, [trip, users]);
 
-    const handleUpload = (newDocData: Omit<Document, 'id' | 'tripId' | 'uploadDate' | 'fileUrl'>) => {
+    useEffect(() => {
+        documents.forEach(d => {
+            setCategories(prev => prev.includes(d.category) ? prev : [...prev, d.category]);
+        });
+    }, [documents]);
+
+    const addCategory = (name: string) => {
+        setCategories(prev => prev.includes(name) ? prev : [...prev, name]);
+    };
+
+    const handleUpload = (newDocData: Omit<Document, 'id' | 'tripId' | 'uploadDate'>) => {
         onAddDocument({
             ...newDocData,
             tripId: trip.id,
             uploadDate: new Date().toISOString().split('T')[0],
-            fileUrl: '#'
         });
+        addCategory(newDocData.category);
     };
-    
+
+    const handleDelete = (id: string) => {
+        if (window.confirm('Biztosan törli a dokumentumot?')) {
+            onRemoveDocument(id);
+        }
+    };
+
     const requestSort = (key: SortableKeys) => {
         let direction: 'asc' | 'desc' = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -1125,6 +1309,7 @@ const TripDocuments = ({ trip, user, documents, onAddDocument, users }: {
                             <th onClick={() => requestSort('category')}>Kategória</th>
                             <th onClick={() => requestSort('uploadDate')}>Feltöltés dátuma</th>
                             <th>Láthatóság</th>
+                            <th>Műveletek</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1141,6 +1326,11 @@ const TripDocuments = ({ trip, user, documents, onAddDocument, users }: {
                                     <td>{doc.category}</td>
                                     <td>{doc.uploadDate}</td>
                                     <td>{visibleToText}</td>
+                                    <td className="actions">
+                                        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-small" download>Megnyitás</a>
+                                        <button onClick={() => setEditingDoc(doc)} className="btn btn-secondary btn-small">Szerkesztés</button>
+                                        <button onClick={() => handleDelete(doc.id)} className="btn btn-danger btn-small">Törlés</button>
+                                    </td>
                                 </tr>
                             )
                         })}
@@ -1148,17 +1338,30 @@ const TripDocuments = ({ trip, user, documents, onAddDocument, users }: {
                 </table>
             </div>
 
-            <UploadDocumentModal 
+            <UploadDocumentModal
                 isOpen={isUploadModalOpen}
                 onClose={() => setUploadModalOpen(false)}
                 onUpload={handleUpload}
                 tripParticipants={tripParticipants}
+                categories={categories}
+                onAddCategory={addCategory}
             />
+            {editingDoc && (
+                <EditDocumentModal
+                    doc={editingDoc}
+                    isOpen={!!editingDoc}
+                    onClose={() => setEditingDoc(null)}
+                    onSave={(doc) => { onUpdateDocument(doc); setEditingDoc(null); addCategory(doc.category); }}
+                    tripParticipants={tripParticipants}
+                    categories={categories}
+                    onAddCategory={addCategory}
+                />
+            )}
         </div>
     );
 };
 
-const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onToggleLock, onUpsertConfig, users }: {
+const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onToggleLock, onUpsertConfig, onRemoveConfig, users }: {
     trip: Trip;
     user: User;
     records: PersonalDataRecord[];
@@ -1166,6 +1369,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
     onUpdateRecord: (record: Omit<PersonalDataRecord, 'isLocked'>) => void;
     onToggleLock: (userId: string, fieldId: string) => void;
     onUpsertConfig: (config: PersonalDataFieldConfig) => void;
+    onRemoveConfig: (id: string, tripId: string) => void;
     users: User[];
 }) => {
 
@@ -1178,7 +1382,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
     if (user.role === 'traveler') {
         const [formData, setFormData] = useState<Record<string, string>>(() => {
             const data: Record<string, string> = {};
-            configs.forEach(config => {
+            configs.filter(c => c.enabled !== false).forEach(config => {
                 const record = records.find(r => r.userId === user.id && r.fieldId === config.id);
                 data[config.id] = record?.value || '';
             });
@@ -1204,43 +1408,54 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         const handleBlur = (fieldId: string) => {
             onUpdateRecord({ userId: user.id, fieldId, value: formData[fieldId] });
         };
+
+        const handleSave = () => {
+            Object.entries(formData).forEach(([fieldId, value]) => {
+                onUpdateRecord({ userId: user.id, fieldId, value });
+            });
+        };
         
         return (
             <div className="personal-data-page">
                 <h2>Személyes adatok a(z) {trip.name} utazáshoz</h2>
                 <p>Kérjük, töltse ki az alábbi mezőket a foglalások véglegesítéséhez.</p>
                 <form className="personal-data-form">
-                    {configs.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(config => {
-                        const record = records.find(r => r.userId === user.id && r.fieldId === config.id);
-                        const isLocked = record?.isLocked || false;
-                        
-                        return (
-                            <div className="form-group" key={config.id}>
-                                <label htmlFor={config.id}>{config.label}</label>
-                                {config.type === 'file' ? (
-                                    <div>
-                                        <input 
-                                            id={config.id} 
-                                            type="file" 
-                                            onChange={(e) => handleFileChange(config.id, e.target.files ? e.target.files[0] : null)}
-                                            disabled={isLocked}
+                    <div className="personal-data-grid">
+                        {configs.filter(c => c.enabled !== false).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(config => {
+                            const record = records.find(r => r.userId === user.id && r.fieldId === config.id);
+                            const isLocked = record?.isLocked || false;
+
+                            return (
+                                <div className="form-group" key={config.id}>
+                                    <label htmlFor={config.id}>{config.label}</label>
+                                    {config.type === 'file' ? (
+                                        <div>
+                                            <input
+                                                id={config.id}
+                                                type="file"
+                                                onChange={(e) => handleFileChange(config.id, e.target.files ? e.target.files[0] : null)}
+                                                disabled={isLocked}
+                                            />
+                                            {formData[config.id] && <p className="file-info">Feltöltve: {formData[config.id]}</p>}
+                                        </div>
+                                    ) : (
+                                         <input
+                                            id={config.id}
+                                            type={config.type}
+                                            value={formData[config.id] || ''}
+                                            onChange={(e) => handleChange(config.id, e.target.value)}
+                                            onBlur={() => handleBlur(config.id)}
+                                            readOnly={isLocked}
+                                            placeholder={isLocked ? 'Zárolva' : ''}
                                         />
-                                        {formData[config.id] && <p className="file-info">Feltöltve: {formData[config.id]}</p>}
-                                    </div>
-                                ) : (
-                                     <input
-                                        id={config.id}
-                                        type={config.type}
-                                        value={formData[config.id] || ''}
-                                        onChange={(e) => handleChange(config.id, e.target.value)}
-                                        onBlur={() => handleBlur(config.id)}
-                                        readOnly={isLocked}
-                                        placeholder={isLocked ? 'Zárolva' : ''}
-                                    />
-                                )}
-                            </div>
-                        )
-                    })}
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                    <div className="personal-data-actions">
+                        <button type="button" className="btn btn-primary" onClick={handleSave}>Mentés</button>
+                    </div>
                 </form>
             </div>
         )
@@ -1255,42 +1470,130 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         }
     }, [tripParticipants, selectedTravelerId]);
 
-    const [newFieldId, setNewFieldId] = useState('');
+    const BASIC_FIELD_IDS = ['firstName','lastName','dateOfBirth','passportNumber','issueDate','issuingCountry','expiryDate','nationality','sex'];
+
+    const [localConfigs, setLocalConfigs] = useState<PersonalDataFieldConfig[]>([]);
+    const [availableFields, setAvailableFields] = useState<PersonalDataFieldConfig[]>([]);
+    useEffect(() => {
+        const relevant = configs.filter(c => c.tripId === trip.id || c.tripId === 'default');
+        const map = new Map<string, PersonalDataFieldConfig>();
+        relevant.forEach(c => {
+            if (c.tripId === trip.id || !map.has(c.id)) {
+                map.set(c.id, c);
+            }
+        });
+        const merged = Array.from(map.values());
+        setLocalConfigs(merged.filter(c => c.enabled !== false).sort((a, b) => (a.order || 0) - (b.order || 0)));
+        setAvailableFields(merged.filter(c => c.enabled === false && BASIC_FIELD_IDS.includes(c.id)).sort((a,b)=>(a.order||0)-(b.order||0)));
+    }, [configs, trip.id]);
+
     const [newFieldLabel, setNewFieldLabel] = useState('');
     const [newFieldType, setNewFieldType] = useState<'text' | 'date' | 'file'>('text');
 
     const handleAddField = () => {
-        if (!newFieldId) return;
-        fetch(`${API_BASE}/api/field-config/${newFieldId}`, {
+        const id = newFieldLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        if (!id) return;
+        fetch(`${API_BASE}/api/field-config/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ label: newFieldLabel, type: newFieldType, enabled: true, locked: false, tripId: trip.id, order: configs.length + 1 })
+            body: JSON.stringify({ label: newFieldLabel, type: newFieldType, enabled: true, locked: false, tripId: trip.id, order: localConfigs.length + 1 })
         }).then(res => res.json()).then(c => {
             onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
-            setNewFieldId('');
             setNewFieldLabel('');
             setNewFieldType('text');
         }).catch(() => {});
     };
 
-    const handleOrderChange = (id: string, order: number) => {
-        fetch(`${API_BASE}/api/field-config/${id}`, {
+    const handleEnableField = (cfg: PersonalDataFieldConfig) => {
+        fetch(`${API_BASE}/api/field-config/${cfg.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order, tripId: trip.id })
+            body: JSON.stringify({ label: cfg.label, type: cfg.type, enabled: true, locked: cfg.locked, tripId: trip.id, order: localConfigs.length + 1 })
         }).then(res => res.json()).then(c => {
             onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
         }).catch(() => {});
+    };
+
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editLabel, setEditLabel] = useState('');
+    const [editType, setEditType] = useState<'text' | 'date' | 'file'>('text');
+
+    const startEdit = (cfg: PersonalDataFieldConfig) => {
+        setEditingId(cfg.id);
+        setEditLabel(cfg.label);
+        setEditType(cfg.type);
+    };
+
+    const saveEdit = (cfg: PersonalDataFieldConfig) => {
+        fetch(`${API_BASE}/api/field-config/${cfg.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: editLabel, type: editType, enabled: true, locked: cfg.locked, tripId: trip.id, order: cfg.order })
+        }).then(res => res.json()).then(c => {
+            onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
+            setEditingId(null);
+        }).catch(() => {});
+    };
+
+    const cancelEdit = () => setEditingId(null);
+
+    const handleDeleteField = (cfg: PersonalDataFieldConfig) => {
+        if (cfg.locked) return;
+        if (BASIC_FIELD_IDS.includes(cfg.id)) {
+            fetch(`${API_BASE}/api/field-config/${cfg.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ label: cfg.label, type: cfg.type, enabled: false, locked: cfg.locked, tripId: trip.id, order: cfg.order })
+            }).then(res => res.json()).then(c => {
+                onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
+            }).catch(() => {});
+        } else {
+            fetch(`${API_BASE}/api/field-config/${cfg.id}?tripId=${trip.id}`, { method: 'DELETE' })
+                .then(() => onRemoveConfig(cfg.id, trip.id))
+                .catch(() => {});
+        }
+    };
+
+    const handleOrderChange = (id: string, order: number) => {
+        const cfg = localConfigs.find(c => c.id === id) || availableFields.find(c => c.id === id);
+        if (!cfg) return;
+        fetch(`${API_BASE}/api/field-config/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: cfg.label, type: cfg.type, enabled: cfg.enabled !== false, locked: cfg.locked, tripId: trip.id, order })
+        }).then(res => res.json()).then(c => {
+            onUpsertConfig({ id: c.field, tripId: String(c.tripId), label: c.label, type: c.type, enabled: c.enabled, locked: c.locked, order: c.order });
+        }).catch(() => {});
+    };
+
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+    const onDragStart = (index: number) => {
+        setDragIndex(index);
+    };
+
+    const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+    };
+
+    const onDrop = (index: number) => {
+        if (dragIndex === null) return;
+        const updated = [...localConfigs];
+        const [moved] = updated.splice(dragIndex, 1);
+        updated.splice(index, 0, moved);
+        updated.forEach((cfg, idx) => {
+            if (cfg.order !== idx + 1) {
+                handleOrderChange(cfg.id, idx + 1);
+            }
+        });
+        setLocalConfigs(updated.map((cfg, idx) => ({ ...cfg, order: idx + 1 })));
+        setDragIndex(null);
     };
 
     const handleRemoveFile = (userId: string, fieldId: string) => {
         fetch(`${API_BASE}/api/users/${userId}/personal-data/${fieldId}/file`, { method: 'DELETE' })
             .then(() => onUpdateRecord({ userId, fieldId, value: '' }))
             .catch(() => {});
-    };
-
-    const handleTravelerInput = (userId: string, fieldId: string, value: string) => {
-        onUpdateRecord({ userId, fieldId, value });
     };
 
     const handleTravelerFileChange = async (userId: string, fieldId: string, file: File | null) => {
@@ -1303,6 +1606,37 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
             }).catch(() => {});
             onUpdateRecord({ userId, fieldId, value: file.name });
         }
+    };
+
+    const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+    const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+
+    const startFieldEdit = (fieldId: string, value: string) => {
+        setEditingFieldId(fieldId);
+        setDraftValues(prev => ({ ...prev, [fieldId]: value }));
+    };
+
+    const handleDraftChange = (fieldId: string, value: string) => {
+        setDraftValues(prev => ({ ...prev, [fieldId]: value }));
+    };
+
+    const saveFieldEdit = (userId: string, fieldId: string) => {
+        const value = draftValues[fieldId] || '';
+        onUpdateRecord({ userId, fieldId, value });
+        setEditingFieldId(null);
+    };
+
+    const [remarkEditing, setRemarkEditing] = useState(false);
+    const [remarkValue, setRemarkValue] = useState('');
+
+    const startRemarkEdit = (value: string) => {
+        setRemarkEditing(true);
+        setRemarkValue(value);
+    };
+
+    const saveRemark = (userId: string) => {
+        onUpdateRecord({ userId, fieldId: 'remark', value: remarkValue });
+        setRemarkEditing(false);
     };
 
     const handlePrint = () => window.print();
@@ -1322,22 +1656,60 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         <div className="personal-data-page">
             <h2>Résztvevők személyes adatai: {trip.name}</h2>
             <div className="field-manager">
-                <h3>Mezők</h3>
-                {configs.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(c => (
-                    <div key={c.id} className="config-item">
-                        <span>{c.label}</span>
-                        <input type="number" value={c.order || 0} onChange={e => handleOrderChange(c.id, Number(e.target.value))} />
+                <h3>Mezők kezelése</h3>
+                <div className="config-list">
+                    {localConfigs.map((c, index) => (
+                        <div
+                            key={c.id}
+                            className="config-item"
+                            draggable={editingId === null}
+                            onDragStart={() => onDragStart(index)}
+                            onDragOver={onDragOver}
+                            onDrop={() => onDrop(index)}
+                        >
+                            <span className="drag-handle">☰</span>
+                            {editingId === c.id ? (
+                                <>
+                                    <input value={editLabel} onChange={e => setEditLabel(e.target.value)} />
+                                    <select value={editType} onChange={e => setEditType(e.target.value as any)}>
+                                        <option value="text">Szöveg</option>
+                                        <option value="date">Dátum</option>
+                                        <option value="file">Fájl</option>
+                                    </select>
+                                    <div className="config-actions">
+                                        <button className="btn btn-small" onClick={() => saveEdit(c)}>Mentés</button>
+                                        <button className="btn btn-small" onClick={cancelEdit}>Mégse</button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="config-label">{c.label} <small>({c.type})</small></span>
+                                    {!c.locked && (
+                                        <div className="config-actions">
+                                            <button className="btn btn-small" onClick={() => startEdit(c)}>Szerkesztés</button>
+                                            <button className="btn btn-danger btn-small" onClick={() => handleDeleteField(c)}>Törlés</button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    ))}
+                </div>
+                {availableFields.length > 0 && (
+                    <div className="available-fields">
+                        {availableFields.map(f => (
+                            <button key={f.id} className="btn btn-secondary btn-small" onClick={() => handleEnableField(f)}>+ {f.label}</button>
+                        ))}
                     </div>
-                ))}
+                )}
                 <div className="add-field">
-                    <input placeholder="Field ID" value={newFieldId} onChange={e => setNewFieldId(e.target.value)} />
-                    <input placeholder="Label" value={newFieldLabel} onChange={e => setNewFieldLabel(e.target.value)} />
+                    <input placeholder="Címke" value={newFieldLabel} onChange={e => setNewFieldLabel(e.target.value)} />
                     <select value={newFieldType} onChange={e => setNewFieldType(e.target.value as any)}>
-                        <option value="text">Text</option>
-                        <option value="date">Date</option>
-                        <option value="file">File</option>
+                        <option value="text">Szöveg</option>
+                        <option value="date">Dátum</option>
+                        <option value="file">Fájl</option>
                     </select>
-                    <button className="btn" onClick={handleAddField}>Add</button>
+                    <button className="btn" onClick={handleAddField}>Hozzáadás</button>
                 </div>
             </div>
             <div className="traveler-select">
@@ -1355,23 +1727,32 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
             {participant && (
                 <div className="participant-data-card">
                     <h3>{participant.name}</h3>
-                    {configs.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(config => {
+                    {localConfigs.map(config => {
                         const record = records.find(r => r.userId === participant.id && r.fieldId === config.id);
+                        const isEditing = editingFieldId === config.id || !record?.value;
+                        const draft = draftValues[config.id] ?? record?.value ?? '';
                         return (
-                            <div key={config.id} className="data-field-group">
+                            <div key={config.id} className={`data-field-group${!record?.value ? ' empty' : ''}`}>
                                 <div className="data-field-header">
                                     <label>{config.label}</label>
-                                    <button
-                                        className="lock-btn"
-                                        onClick={() => onToggleLock(participant.id, config.id)}
-                                        aria-label={record?.isLocked ? 'Mező feloldása' : 'Mező zárolása'}
-                                    >
-                                        {record?.isLocked ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <div className="field-header-actions">
+                                        <button
+                                            className="lock-btn"
+                                            onClick={() => onToggleLock(participant.id, config.id)}
+                                            aria-label={record?.isLocked ? 'Mező feloldása' : 'Mező zárolása'}
+                                        >
+                                            {record?.isLocked ? (
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
+                                            ) : (
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                            )}
+                                        </button>
+                                        {config.type !== 'file' && record?.value && !record?.isLocked && (
+                                            <button className="edit-btn" onClick={() => startFieldEdit(config.id, record.value)} aria-label="Szerkesztés">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
+                                            </button>
                                         )}
-                                    </button>
+                                    </div>
                                 </div>
                                 {config.type === 'file' ? (
                                     <div>
@@ -1385,18 +1766,51 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                                             <input type="file" onChange={e => handleTravelerFileChange(participant.id, config.id, e.target.files ? e.target.files[0] : null)} />
                                         )}
                                     </div>
+                                ) : isEditing && !record?.isLocked ? (
+                                    <div className="field-edit">
+                                        <input type={config.type} value={draft} onChange={e => handleDraftChange(config.id, e.target.value)} />
+                                        <button className="save-btn" onClick={() => saveFieldEdit(participant.id, config.id)} aria-label="Mentés">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                                        </button>
+                                    </div>
                                 ) : (
-                                    <input
-                                        type={config.type}
-                                        defaultValue={record?.value || ''}
-                                        readOnly={record?.isLocked}
-                                        onBlur={e => handleTravelerInput(participant.id, config.id, e.target.value)}
-                                        className={!record?.value ? 'empty' : ''}
-                                    />
+                                    <div className="field-display">
+                                        <span className={`data-value${record?.value ? '' : ' empty'}`}>{record?.value || ''}</span>
+                                    </div>
                                 )}
+                                <div className="print-row">
+                                    <span className="print-label">{config.label}:</span> <span className="print-value">{record?.value}</span>
+                                </div>
                             </div>
                         );
                     })}
+                    {(() => {
+                        const remarkRecord = records.find(r => r.userId === participant.id && r.fieldId === 'remark');
+                        return (
+                            <div className="remark-section">
+                                <div className="data-field-header">
+                                    <label>Megjegyzés</label>
+                                    {remarkEditing ? (
+                                        <button className="save-btn" onClick={() => saveRemark(participant.id)} aria-label="Mentés">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                                        </button>
+                                    ) : (
+                                        <button className="edit-btn" onClick={() => startRemarkEdit(remarkRecord?.value || '')} aria-label="Szerkesztés">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
+                                        </button>
+                                    )}
+                                </div>
+                                {remarkEditing ? (
+                                    <textarea value={remarkValue} onChange={e => setRemarkValue(e.target.value)} />
+                                ) : (
+                                    <p className={`data-value${remarkRecord?.value ? '' : ' empty'}`}>{remarkRecord?.value || ''}</p>
+                                )}
+                                <div className="print-row">
+                                    <span className="print-label">Megjegyzés:</span> <span className="print-value">{remarkRecord?.value}</span>
+                                </div>
+                            </div>
+                        );
+                    })()}
                     <div className="personal-data-actions">
                         <button className="btn btn-secondary" onClick={handlePrint}>Nyomtatás</button>
                         <button className="btn btn-secondary" onClick={handlePrint}>PDF mentése</button>
@@ -1419,7 +1833,10 @@ const Sidebar = ({
     mainView,
     userRole,
     userId,
-    isOpen
+    isOpen,
+    onLogout,
+    theme,
+    onThemeChange
 }: {
     trips: Trip[],
     selectedTripId: string | null,
@@ -1431,7 +1848,10 @@ const Sidebar = ({
     mainView: 'trips' | 'users',
     userRole: Role,
     userId: string,
-    isOpen: boolean
+    isOpen: boolean,
+    onLogout: () => void,
+    theme: Theme,
+    onThemeChange: (theme: Theme) => void
 }) => {
 
     return (
@@ -1454,6 +1874,7 @@ const Sidebar = ({
                               ];
                               if (userRole === 'admin' || (userRole === 'organizer' && trip.organizerIds.includes(userId))) {
                                 tripNavItems.push({ key: 'users', label: 'Felhasználók' });
+                                tripNavItems.push({ key: 'settings', label: 'Beállítások' });
                               }
                               return (
                                 <li key={trip.id} className={`trip-item ${trip.id === selectedTripId ? 'active' : ''}`}>
@@ -1490,6 +1911,10 @@ const Sidebar = ({
                     )}
                 </ul>
             </nav>
+            <div className="sidebar-footer">
+                <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
+                <button onClick={onLogout} className="btn btn-logout">Kijelentkezés</button>
+            </div>
         </aside>
     );
 };
@@ -1498,8 +1923,8 @@ const Sidebar = ({
 const Dashboard = ({
     user, trips, refreshTrips, onLogout, onCreateTrip,
     financialRecords, onAddFinancialRecord,
-    documents, onAddDocument,
-    personalDataConfigs, personalDataRecords, onUpdatePersonalData, onTogglePersonalDataLock, onUpsertPersonalDataConfig,
+    documents, onAddDocument, onUpdateDocument, onRemoveDocument,
+    personalDataConfigs, personalDataRecords, onUpdatePersonalData, onTogglePersonalDataLock, onUpsertPersonalDataConfig, onRemovePersonalDataConfig,
     itineraryItems, onAddItineraryItem, onRemoveItineraryItem,
     theme, onThemeChange
 }: {
@@ -1512,11 +1937,14 @@ const Dashboard = ({
     onAddFinancialRecord: (record: Omit<FinancialRecord, 'id'>) => void,
     documents: Document[],
     onAddDocument: (doc: Omit<Document, 'id'>) => void,
+    onUpdateDocument: (doc: Document) => void,
+    onRemoveDocument: (id: string) => void,
     personalDataConfigs: PersonalDataFieldConfig[],
     personalDataRecords: PersonalDataRecord[],
     onUpdatePersonalData: (record: Omit<PersonalDataRecord, 'isLocked'>) => void,
     onTogglePersonalDataLock: (userId: string, fieldId: string) => void,
     onUpsertPersonalDataConfig: (config: PersonalDataFieldConfig) => void,
+    onRemovePersonalDataConfig: (id: string, tripId: string) => void,
     itineraryItems: ItineraryItem[],
     onAddItineraryItem: (item: Omit<ItineraryItem, 'id'>) => void,
     onRemoveItineraryItem: (id: string) => void,
@@ -1617,13 +2045,15 @@ const Dashboard = ({
             case 'summary': return <TripSummary trip={selectedTrip} />;
             case 'financials': return <TripFinancials trip={selectedTrip} user={user} records={tripFinancialRecords} users={allUsers} onAddRecord={onAddFinancialRecord} />;
             case 'itinerary': return <TripItinerary trip={selectedTrip} user={user} items={tripItineraryItems} onAddItem={onAddItineraryItem} onRemoveItem={onRemoveItineraryItem} />;
-            case 'documents': return <TripDocuments trip={selectedTrip} user={user} documents={tripDocuments} onAddDocument={onAddDocument} users={allUsers} />;
-            case 'personalData': return <TripPersonalData trip={selectedTrip} user={user} configs={tripPersonalDataConfigs} records={tripPersonalDataRecords} onUpdateRecord={onUpdatePersonalData} onToggleLock={onTogglePersonalDataLock} onUpsertConfig={onUpsertPersonalDataConfig} users={allUsers} />;
+            case 'documents': return <TripDocuments trip={selectedTrip} user={user} documents={tripDocuments} onAddDocument={onAddDocument} onUpdateDocument={onUpdateDocument} onRemoveDocument={onRemoveDocument} users={allUsers} />;
+            case 'personalData': return <TripPersonalData trip={selectedTrip} user={user} configs={tripPersonalDataConfigs} records={tripPersonalDataRecords} onUpdateRecord={onUpdatePersonalData} onToggleLock={onTogglePersonalDataLock} onUpsertConfig={onUpsertPersonalDataConfig} onRemoveConfig={onRemovePersonalDataConfig} users={allUsers} />;
             case 'users':
               if (user.role !== 'admin' && !selectedTrip.organizerIds.includes(String(user.id))) {
                 return <p>Nincs jogosultsága a felhasználók kezeléséhez.</p>;
               }
               return <TripUserManagement trip={selectedTrip} users={allUsers} currentUser={user} onChange={() => { refreshTrips(); setUserRefresh(v => v + 1); }} />;
+            case 'settings':
+              return <TripSettings trip={selectedTrip} user={user} onUpdated={refreshTrips} onDeleted={() => { setSelectedTripId(null); refreshTrips(); }} />;
             default: return <h2>Válasszon nézetet</h2>;
         }
     }
@@ -1674,16 +2104,16 @@ const Dashboard = ({
             userRole={user.role}
             userId={String(user.id)}
             isOpen={isMobileSidebarOpen}
+            onLogout={onLogout}
+            theme={theme}
+            onThemeChange={onThemeChange}
         />
         <div className="sidebar-overlay" onClick={() => setMobileSidebarOpen(false)}></div>
         <div className="dashboard-container">
-          <Header 
-            user={user} 
-            onLogout={onLogout} 
-            onToggleSidebar={() => setMobileSidebarOpen(true)} 
+          <Header
+            user={user}
+            onToggleSidebar={() => setMobileSidebarOpen(true)}
             showHamburger={true}
-            theme={theme}
-            onThemeChange={onThemeChange}
           />
           <main className="dashboard-content">
             {renderContent()}

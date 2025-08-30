@@ -39,6 +39,8 @@ const userSchema = new mongoose.Schema({
   personalData: [personalDataSchema],
   passportPhoto: String,
   mustChangePassword: { type: Boolean, default: false },
+  sessionToken: String,
+  sessionExpiresAt: Date,
 }, { timestamps: true });
 
 const fieldConfigSchema = new mongoose.Schema({
@@ -96,16 +98,15 @@ async function ensureAdminUser() {
 
 async function ensureDefaultFieldConfigs() {
   const defaults = [
-    { field: 'firstName', label: 'First Name', type: 'text', locked: true, order: 1 },
-    { field: 'lastName', label: 'Last Name', type: 'text', locked: true, order: 2 },
-    { field: 'dateOfBirth', label: 'Date of Birth', type: 'date', locked: true, order: 3 },
-    { field: 'middleName', label: 'Middle Name', type: 'text', order: 4 },
-    { field: 'passportNumber', label: 'Passport Number', type: 'text', order: 5 },
-    { field: 'issueDate', label: 'Issue Date', type: 'date', order: 6 },
-    { field: 'issuingCountry', label: 'Issuing Country', type: 'text', order: 7 },
-    { field: 'expiryDate', label: 'Expiry Date', type: 'date', order: 8 },
-    { field: 'nationality', label: 'Nationality', type: 'text', order: 9 },
-    { field: 'sex', label: 'Sex', type: 'text', order: 10 },
+    { field: 'firstName', label: 'Keresztnév', type: 'text', locked: true, enabled: true, order: 1 },
+    { field: 'lastName', label: 'Vezetéknév', type: 'text', locked: true, enabled: true, order: 2 },
+    { field: 'dateOfBirth', label: 'Születési dátum', type: 'date', locked: true, enabled: true, order: 3 },
+    { field: 'passportNumber', label: 'Útlevélszám', type: 'text', enabled: false, order: 4 },
+    { field: 'issueDate', label: 'Kiadás dátuma', type: 'date', enabled: false, order: 5 },
+    { field: 'issuingCountry', label: 'Kibocsátó ország', type: 'text', enabled: false, order: 6 },
+    { field: 'expiryDate', label: 'Lejárati dátum', type: 'date', enabled: false, order: 7 },
+    { field: 'nationality', label: 'Állampolgárság', type: 'text', enabled: false, order: 8 },
+    { field: 'sex', label: 'Nem', type: 'text', enabled: false, order: 9 },
   ];
   for (const def of defaults) {
     await FieldConfig.findOneAndUpdate(
@@ -151,6 +152,41 @@ async function sendInvitationEmail(email, signupUrl) {
   }
 }
 
+async function sendProblemReportEmail(name, fromEmail, message) {
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  if (!apiKey || !senderEmail) {
+    console.error('Brevo email not sent: missing BREVO_API_KEY or BREVO_SENDER_EMAIL');
+    return;
+  }
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify({
+        sender: {
+          email: senderEmail,
+          name: process.env.BREVO_SENDER_NAME || 'myTrip'
+        },
+        to: [{ email: 'mistenes@mistenes.com' }],
+        subject: 'HYCA travelportal problem',
+        htmlContent: `<p>Name: ${name}</p><p>Email: ${fromEmail}</p><p>Message:</p><p>${message}</p>`
+      })
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      console.error('Brevo error', res.status, text);
+    } else {
+      console.log('Brevo response', res.status, text);
+    }
+  } catch (err) {
+    console.error('Email send failed', err);
+  }
+}
+
 const upload = multer({ dest: 'uploads/' });
 app.use('/uploads', express.static('uploads'));
 
@@ -159,6 +195,12 @@ app.use(express.static(distPath));
 
 app.get('/health', (_req, res) => {
   res.type('text/plain').send('myTrip server: OK');
+});
+
+app.post('/api/report-problem', async (req, res) => {
+  const { name, email, message } = req.body;
+  await sendProblemReportEmail(name, email, message);
+  res.json({ message: 'Report sent' });
 });
 
 app.post('/api/invitations', async (req, res) => {
@@ -276,7 +318,30 @@ app.post('/api/login', async (req, res) => {
   if (!user) return res.status(401).json({ message: 'Invalid credentials' });
   const hash = crypto.createHash('sha256').update(password).digest('hex');
   if (user.passwordHash !== hash) return res.status(401).json({ message: 'Invalid credentials' });
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
+  user.sessionToken = token;
+  user.sessionExpiresAt = expiresAt;
+  await user.save();
+  res.json({ id: user._id, role: user.role, name: user.name || user.username, mustChangePassword: user.mustChangePassword, token });
+});
+
+app.get('/api/session', async (req, res) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!token) return res.sendStatus(401);
+  const user = await User.findOne({ sessionToken: token, sessionExpiresAt: { $gt: new Date() } });
+  if (!user) return res.sendStatus(401);
   res.json({ id: user._id, role: user.role, name: user.name || user.username, mustChangePassword: user.mustChangePassword });
+});
+
+app.post('/api/logout', async (req, res) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (token) {
+    await User.updateOne({ sessionToken: token }, { $unset: { sessionToken: 1, sessionExpiresAt: 1 } });
+  }
+  res.sendStatus(204);
 });
 
 app.post('/api/users/:id/password', async (req, res) => {
@@ -293,7 +358,7 @@ app.post('/api/users/:id/password', async (req, res) => {
 });
 
 app.get('/api/users', async (_req, res) => {
-  const users = await User.find();
+  const users = await User.find({}, '-passwordHash -sessionToken -sessionExpiresAt');
   res.json(users);
 });
 
@@ -336,6 +401,17 @@ app.post('/api/trips', async (req, res) => {
   res.status(201).json(trip);
 });
 
+app.put('/api/trips/:id', async (req, res) => {
+  const { name, startDate, endDate } = req.body;
+  const trip = await Trip.findByIdAndUpdate(
+    req.params.id,
+    { name, startDate, endDate },
+    { new: true }
+  );
+  if (!trip) return res.sendStatus(404);
+  res.json(trip);
+});
+
 app.post('/api/trips/:id/organizers', async (req, res) => {
   const { userId } = req.body;
   await Trip.findByIdAndUpdate(req.params.id, { $addToSet: { organizerIds: userId } });
@@ -363,6 +439,16 @@ app.delete('/api/trips/:id/travelers/:userId', async (req, res) => {
   res.sendStatus(204);
 });
 
+app.delete('/api/trips/:id', async (req, res) => {
+  const { id } = req.params;
+  await Promise.all([
+    Trip.findByIdAndDelete(id),
+    FieldConfig.deleteMany({ tripId: id }),
+    Invitation.deleteMany({ tripId: id }),
+  ]);
+  res.sendStatus(204);
+});
+
 app.get('/api/field-config', async (_req, res) => {
   const configs = await FieldConfig.find().sort({ order: 1 });
   res.json(configs);
@@ -376,6 +462,15 @@ app.put('/api/field-config/:field', async (req, res) => {
     { new: true, upsert: true }
   );
   res.json(config);
+});
+
+app.delete('/api/field-config/:field', async (req, res) => {
+  const { tripId } = req.query;
+  if (!tripId) {
+    return res.status(400).json({ message: 'tripId required' });
+  }
+  await FieldConfig.deleteOne({ field: req.params.field, tripId });
+  res.sendStatus(204);
 });
 
 app.put('/api/users/:id/personal-data', async (req, res) => {
