@@ -46,9 +46,11 @@ Use the following API endpoints:
 - `GET /api/users/:id/personal-data` – retrieve a user's current personal data entries
 - `PUT /api/users/:id/personal-data/:field/lock` – lock or unlock a field for a specific user
 - `POST /api/users/:id/personal-data/:field/file` – upload a file for a field (`file` form field)
+- `GET /api/users/:id/personal-data/:field/file` – download a field's file (requires valid session token)
 - `DELETE /api/users/:id/personal-data/:field/file` – remove an uploaded file
 
-Uploaded files are served from `/uploads`, and the `uploads/` directory is ignored by Git.
+Files are stored in the directory specified by the `UPLOAD_DIR` environment variable (defaults to `./uploads`).
+Direct file URLs are not exposed; clients must request files via the authenticated endpoints above.
 
 On a trip's personal data page, organizers or administrators can choose any traveler, view their details, edit unlocked fields, upload or remove files, and manage the trip's field definitions. Travelers see only their own form and may edit unlocked fields.
 

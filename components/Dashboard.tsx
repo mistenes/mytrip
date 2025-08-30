@@ -1394,14 +1394,19 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
         };
 
         const handleFileChange = async (fieldId: string, file: File | null) => {
-            if (file) {
+            if (file && user.token) {
                 const formDataData = new FormData();
                 formDataData.append('file', file);
-                await fetch(`${API_BASE}/api/users/${user.id}/personal-data/${fieldId}/file`, {
-                    method: 'POST',
-                    body: formDataData
-                }).catch(() => {});
-                onUpdateRecord({ userId: user.id, fieldId, value: file.name });
+                try {
+                    const res = await fetch(`${API_BASE}/api/users/${user.id}/personal-data/${fieldId}/file`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${user.token}` },
+                        body: formDataData
+                    });
+                    const data = await res.json();
+                    setFormData(prev => ({ ...prev, [fieldId]: file.name }));
+                    onUpdateRecord({ userId: user.id, fieldId, value: data.path });
+                } catch (_) {}
             }
         };
 
@@ -1591,20 +1596,25 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
     };
 
     const handleRemoveFile = (userId: string, fieldId: string) => {
-        fetch(`${API_BASE}/api/users/${userId}/personal-data/${fieldId}/file`, { method: 'DELETE' })
+        if (!user.token) return;
+        fetch(`${API_BASE}/api/users/${userId}/personal-data/${fieldId}/file`, { method: 'DELETE', headers: { Authorization: `Bearer ${user.token}` } })
             .then(() => onUpdateRecord({ userId, fieldId, value: '' }))
             .catch(() => {});
     };
 
     const handleTravelerFileChange = async (userId: string, fieldId: string, file: File | null) => {
-        if (file) {
+        if (file && user.token) {
             const fd = new FormData();
             fd.append('file', file);
-            await fetch(`${API_BASE}/api/users/${userId}/personal-data/${fieldId}/file`, {
-                method: 'POST',
-                body: fd
-            }).catch(() => {});
-            onUpdateRecord({ userId, fieldId, value: file.name });
+            try {
+                const res = await fetch(`${API_BASE}/api/users/${userId}/personal-data/${fieldId}/file`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${user.token}` },
+                    body: fd
+                });
+                const data = await res.json();
+                onUpdateRecord({ userId, fieldId, value: data.path });
+            } catch (_) {}
         }
     };
 
@@ -1758,7 +1768,7 @@ const TripPersonalData = ({ trip, user, records, configs, onUpdateRecord, onTogg
                                     <div>
                                         {record?.value && (
                                             <div>
-                                                <a href={`${API_BASE}/${record.value}`} className="file-link">{record.value}</a>
+                                                <a href={`${API_BASE}/api/users/${participant.id}/personal-data/${config.id}/file?token=${user.token || ''}`} className="file-link">{record.value}</a>
                                                 <button className="remove-file" onClick={() => handleRemoveFile(participant.id, config.id)}>Remove</button>
                                             </div>
                                         )}

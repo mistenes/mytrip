@@ -187,8 +187,42 @@ async function sendProblemReportEmail(name, fromEmail, message) {
   }
 }
 
-const upload = multer({ dest: 'uploads/' });
-app.use('/uploads', express.static('uploads'));
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+fs.mkdirSync(uploadDir, { recursive: true });
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const unique = crypto.randomBytes(16).toString('hex') + path.extname(file.originalname);
+    cb(null, unique);
+  }
+});
+const upload = multer({ storage });
+
+async function auth(req, res, next) {
+  let token = '';
+  const authHeader = req.headers.authorization || '';
+  if (authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7);
+  } else if (req.query.token) {
+    token = Array.isArray(req.query.token) ? req.query.token[0] : String(req.query.token);
+  }
+  if (!token) return res.sendStatus(401);
+  const user = await User.findOne({ sessionToken: token, sessionExpiresAt: { $gt: new Date() } });
+  if (!user) return res.sendStatus(401);
+  req.user = user;
+  next();
+}
+
+async function canAccess(requester, targetUserId) {
+  if (!requester) return false;
+  if (requester.role === 'admin') return true;
+  if (String(requester._id) === String(targetUserId)) return true;
+  if (requester.role === 'organizer') {
+    const trip = await Trip.findOne({ organizerIds: requester._id, travelerIds: targetUserId });
+    if (trip) return true;
+  }
+  return false;
+}
 
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
@@ -511,36 +545,55 @@ app.put('/api/users/:id/personal-data/:field/lock', async (req, res) => {
   res.json(user);
 });
 
-app.post('/api/users/:id/passport-photo', upload.single('photo'), async (req, res) => {
+app.post('/api/users/:id/passport-photo', auth, upload.single('photo'), async (req, res) => {
+  if (!(await canAccess(req.user, req.params.id))) return res.sendStatus(403);
   const user = await User.findById(req.params.id);
   if (!user || !req.file) return res.sendStatus(400);
-  user.passportPhoto = req.file.path;
+  user.passportPhoto = req.file.filename;
   await user.save();
-  res.json({ path: req.file.path });
+  res.json({ path: req.file.filename });
 });
 
-app.post('/api/users/:id/personal-data/:field/file', upload.single('file'), async (req, res) => {
+app.get('/api/users/:id/passport-photo', auth, async (req, res) => {
+  if (!(await canAccess(req.user, req.params.id))) return res.sendStatus(403);
+  const user = await User.findById(req.params.id);
+  if (!user || !user.passportPhoto) return res.sendStatus(404);
+  res.sendFile(path.join(uploadDir, user.passportPhoto));
+});
+
+app.post('/api/users/:id/personal-data/:field/file', auth, upload.single('file'), async (req, res) => {
+  if (!(await canAccess(req.user, req.params.id))) return res.sendStatus(403);
   const user = await User.findById(req.params.id);
   if (!user || !req.file) return res.sendStatus(400);
   const config = await FieldConfig.findOne({ field: req.params.field });
   if (!config || config.type !== 'file') return res.status(400).json({ message: 'Invalid field' });
   let entry = user.personalData.find(e => e.field === req.params.field);
   if (entry) {
-    entry.value = req.file.path;
+    entry.value = req.file.filename;
   } else {
-    user.personalData.push({ field: req.params.field, value: req.file.path });
+    user.personalData.push({ field: req.params.field, value: req.file.filename });
   }
   await user.save();
-  res.json({ path: req.file.path });
+  res.json({ path: req.file.filename });
 });
 
-app.delete('/api/users/:id/personal-data/:field/file', async (req, res) => {
+app.get('/api/users/:id/personal-data/:field/file', auth, async (req, res) => {
+  if (!(await canAccess(req.user, req.params.id))) return res.sendStatus(403);
+  const user = await User.findById(req.params.id);
+  if (!user) return res.sendStatus(404);
+  const entry = user.personalData.find(e => e.field === req.params.field);
+  if (!entry || !entry.value) return res.sendStatus(404);
+  res.sendFile(path.join(uploadDir, entry.value));
+});
+
+app.delete('/api/users/:id/personal-data/:field/file', auth, async (req, res) => {
+  if (!(await canAccess(req.user, req.params.id))) return res.sendStatus(403);
   const user = await User.findById(req.params.id);
   if (!user) return res.sendStatus(404);
   const entry = user.personalData.find(e => e.field === req.params.field);
   if (!entry || !entry.value) return res.sendStatus(404);
   try {
-    await fs.promises.unlink(entry.value);
+    await fs.promises.unlink(path.join(uploadDir, entry.value));
   } catch (_) {}
   entry.value = '';
   await user.save();
