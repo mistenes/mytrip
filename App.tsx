@@ -141,6 +141,14 @@ const App = () => {
       setDocuments(prev => [...prev, newDoc]);
   }
 
+  const handleUpdateDocument = (updated: Document) => {
+      setDocuments(prev => prev.map(doc => doc.id === updated.id ? updated : doc));
+  };
+
+  const handleRemoveDocument = (id: string) => {
+      setDocuments(prev => prev.filter(doc => doc.id !== id));
+  };
+
   const handleUpdatePersonalData = (updatedRecord: Omit<PersonalDataRecord, 'isLocked'>) => {
       setPersonalDataRecords(prev => {
           const existingIndex = prev.findIndex(r => r.userId === updatedRecord.userId && r.fieldId === updatedRecord.fieldId);
@@ -227,6 +235,8 @@ const App = () => {
         onAddFinancialRecord={handleAddFinancialRecord}
         documents={documents}
         onAddDocument={handleAddDocument}
+        onUpdateDocument={handleUpdateDocument}
+        onRemoveDocument={handleRemoveDocument}
         personalDataConfigs={personalDataConfigs}
         personalDataRecords={personalDataRecords}
         onUpdatePersonalData={handleUpdatePersonalData}

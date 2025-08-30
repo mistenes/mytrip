@@ -995,15 +995,24 @@ const TripItinerary = ({ trip, user, items, onAddItem, onRemoveItem }: {
     );
 };
 
-const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
+const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants, categories, onAddCategory }: {
     isOpen: boolean;
     onClose: () => void;
-    onUpload: (doc: Omit<Document, 'id' | 'tripId' | 'uploadDate' | 'fileUrl'>) => void;
+    onUpload: (doc: Omit<Document, 'id' | 'tripId' | 'uploadDate'>) => void;
     tripParticipants: User[];
+    categories: string[];
+    onAddCategory: (name: string) => void;
 }) => {
     const [name, setName] = useState('');
     const [category, setCategory] = useState('');
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>(['all']);
+    const [file, setFile] = useState<File | null>(null);
+
+    useEffect(() => {
+        if (!category && categories.length > 0) {
+            setCategory(categories[0]);
+        }
+    }, [categories, category]);
 
     if (!isOpen) return null;
 
@@ -1013,28 +1022,34 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
             setSelectedUserIds(['all']);
         } else if (options.length > 1 && options.includes('all')) {
             setSelectedUserIds(options.filter(id => id !== 'all'));
-        }
-        else {
+        } else {
             setSelectedUserIds(options);
         }
+    };
+
+    const handleAddCategoryClick = () => {
+        const newCat = prompt('Új kategória neve');
+        if (newCat) onAddCategory(newCat);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!name || !category) {
-            alert("Kérjük, adjon nevet és kategóriát a dokumentumnak.");
+            alert('Kérjük, adjon nevet és kategóriát a dokumentumnak.');
             return;
         }
 
-        const visibleTo: 'all' | number[] = selectedUserIds.includes('all')
+        const visibleTo: 'all' | string[] = selectedUserIds.includes('all')
             ? 'all'
-            : selectedUserIds.map(Number);
+            : selectedUserIds;
+        const fileUrl = file ? URL.createObjectURL(file) : '#';
 
-        onUpload({ name, category, visibleTo });
+        onUpload({ name, category, visibleTo, fileUrl });
         onClose();
         setName('');
-        setCategory('');
+        setCategory(categories[0] || '');
         setSelectedUserIds(['all']);
+        setFile(null);
     };
 
     return (
@@ -1048,7 +1063,12 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
                     </div>
                     <div className="form-group">
                         <label htmlFor="docCategory">Kategória</label>
-                        <input id="docCategory" type="text" value={category} onChange={e => setCategory(e.target.value)} placeholder="pl. Repjegyek, Szállás" required />
+                        <div className="category-select">
+                            <select id="docCategory" value={category} onChange={e => setCategory(e.target.value)} required>
+                                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <button type="button" onClick={handleAddCategoryClick} className="btn btn-secondary btn-small">+</button>
+                        </div>
                     </div>
                     <div className="form-group">
                         <label htmlFor="docVisibleTo">Láthatóság</label>
@@ -1056,11 +1076,11 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
                             <option value="all">Mindenki</option>
                             {tripParticipants.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
                         </select>
-                         <small>Több felhasználó kijelöléséhez tartsa lenyomva a Ctrl/Cmd billentyűt.</small>
+                        <small>Több felhasználó kijelöléséhez tartsa lenyomva a Ctrl/Cmd billentyűt.</small>
                     </div>
                     <div className="form-group">
                         <label htmlFor="docFile">Fájl kiválasztása</label>
-                        <input id="docFile" type="file" />
+                        <input id="docFile" type="file" onChange={e => setFile(e.target.files?.[0] || null)} />
                     </div>
                     <div className="modal-actions">
                         <button type="button" onClick={onClose} className="btn btn-secondary">Mégse</button>
@@ -1072,31 +1092,143 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, tripParticipants }: {
     );
 };
 
-const TripDocuments = ({ trip, user, documents, onAddDocument, users }: {
+const EditDocumentModal = ({ doc, isOpen, onClose, onSave, tripParticipants, categories, onAddCategory }: {
+    doc: Document;
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (doc: Document) => void;
+    tripParticipants: User[];
+    categories: string[];
+    onAddCategory: (name: string) => void;
+}) => {
+    const [name, setName] = useState(doc.name);
+    const [category, setCategory] = useState(doc.category);
+    const [selectedUserIds, setSelectedUserIds] = useState<string[]>(Array.isArray(doc.visibleTo) ? doc.visibleTo : ['all']);
+    const [fileUrl, setFileUrl] = useState(doc.fileUrl);
+
+    useEffect(() => {
+        setName(doc.name);
+        setCategory(doc.category);
+        setSelectedUserIds(Array.isArray(doc.visibleTo) ? doc.visibleTo : ['all']);
+        setFileUrl(doc.fileUrl);
+    }, [doc]);
+
+    if (!isOpen) return null;
+
+    const handleUserSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const options = Array.from(e.target.selectedOptions, option => option.value);
+        if (options.includes('all') && selectedUserIds.length < options.length) {
+            setSelectedUserIds(['all']);
+        } else if (options.length > 1 && options.includes('all')) {
+            setSelectedUserIds(options.filter(id => id !== 'all'));
+        } else {
+            setSelectedUserIds(options);
+        }
+    };
+
+    const handleAddCategoryClick = () => {
+        const newCat = prompt('Új kategória neve');
+        if (newCat) onAddCategory(newCat);
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const f = e.target.files?.[0];
+        if (f) {
+            setFileUrl(URL.createObjectURL(f));
+        }
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const visibleTo: 'all' | string[] = selectedUserIds.includes('all') ? 'all' : selectedUserIds;
+        onSave({ ...doc, name, category, visibleTo, fileUrl });
+    };
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <h2>Dokumentum szerkesztése</h2>
+                <form onSubmit={handleSubmit}>
+                    <div className="form-group">
+                        <label htmlFor="editDocName">Dokumentum neve</label>
+                        <input id="editDocName" type="text" value={name} onChange={e => setName(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="editDocCategory">Kategória</label>
+                        <div className="category-select">
+                            <select id="editDocCategory" value={category} onChange={e => setCategory(e.target.value)} required>
+                                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <button type="button" onClick={handleAddCategoryClick} className="btn btn-secondary btn-small">+</button>
+                        </div>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="editDocVisibleTo">Láthatóság</label>
+                        <select id="editDocVisibleTo" multiple value={selectedUserIds} onChange={handleUserSelect} className="multi-select">
+                            <option value="all">Mindenki</option>
+                            {tripParticipants.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+                        </select>
+                        <small>Több felhasználó kijelöléséhez tartsa lenyomva a Ctrl/Cmd billentyűt.</small>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="editDocFile">Fájl cseréje</label>
+                        <input id="editDocFile" type="file" onChange={handleFileChange} />
+                    </div>
+                    <div className="modal-actions">
+                        <button type="button" onClick={onClose} className="btn btn-secondary">Mégse</button>
+                        <button type="submit" className="btn btn-primary">Mentés</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const TripDocuments = ({ trip, user, documents, onAddDocument, onUpdateDocument, onRemoveDocument, users }: {
     trip: Trip;
     user: User;
     documents: Document[];
     onAddDocument: (doc: Omit<Document, 'id'>) => void;
+    onUpdateDocument: (doc: Document) => void;
+    onRemoveDocument: (id: string) => void;
     users: User[];
 }) => {
     const [isUploadModalOpen, setUploadModalOpen] = useState(false);
+    const [editingDoc, setEditingDoc] = useState<Document | null>(null);
+    const [categories, setCategories] = useState<string[]>(['Plane tickets', 'Admission Tickets', 'Boarding Passes']);
     type SortableKeys = 'name' | 'category' | 'uploadDate';
     const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' } | null>({ key: 'uploadDate', direction: 'desc' });
-    
+
     const tripParticipants = useMemo(() => {
         const participantIds = new Set([...trip.organizerIds, ...trip.travelerIds]);
         return users.filter(u => participantIds.has(u.id));
     }, [trip, users]);
 
-    const handleUpload = (newDocData: Omit<Document, 'id' | 'tripId' | 'uploadDate' | 'fileUrl'>) => {
+    useEffect(() => {
+        documents.forEach(d => {
+            setCategories(prev => prev.includes(d.category) ? prev : [...prev, d.category]);
+        });
+    }, [documents]);
+
+    const addCategory = (name: string) => {
+        setCategories(prev => prev.includes(name) ? prev : [...prev, name]);
+    };
+
+    const handleUpload = (newDocData: Omit<Document, 'id' | 'tripId' | 'uploadDate'>) => {
         onAddDocument({
             ...newDocData,
             tripId: trip.id,
             uploadDate: new Date().toISOString().split('T')[0],
-            fileUrl: '#'
         });
+        addCategory(newDocData.category);
     };
-    
+
+    const handleDelete = (id: string) => {
+        if (window.confirm('Biztosan törli a dokumentumot?')) {
+            onRemoveDocument(id);
+        }
+    };
+
     const requestSort = (key: SortableKeys) => {
         let direction: 'asc' | 'desc' = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -1177,6 +1309,7 @@ const TripDocuments = ({ trip, user, documents, onAddDocument, users }: {
                             <th onClick={() => requestSort('category')}>Kategória</th>
                             <th onClick={() => requestSort('uploadDate')}>Feltöltés dátuma</th>
                             <th>Láthatóság</th>
+                            <th>Műveletek</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1193,6 +1326,11 @@ const TripDocuments = ({ trip, user, documents, onAddDocument, users }: {
                                     <td>{doc.category}</td>
                                     <td>{doc.uploadDate}</td>
                                     <td>{visibleToText}</td>
+                                    <td className="actions">
+                                        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-small" download>Megnyitás</a>
+                                        <button onClick={() => setEditingDoc(doc)} className="btn btn-secondary btn-small">Szerkesztés</button>
+                                        <button onClick={() => handleDelete(doc.id)} className="btn btn-danger btn-small">Törlés</button>
+                                    </td>
                                 </tr>
                             )
                         })}
@@ -1200,12 +1338,25 @@ const TripDocuments = ({ trip, user, documents, onAddDocument, users }: {
                 </table>
             </div>
 
-            <UploadDocumentModal 
+            <UploadDocumentModal
                 isOpen={isUploadModalOpen}
                 onClose={() => setUploadModalOpen(false)}
                 onUpload={handleUpload}
                 tripParticipants={tripParticipants}
+                categories={categories}
+                onAddCategory={addCategory}
             />
+            {editingDoc && (
+                <EditDocumentModal
+                    doc={editingDoc}
+                    isOpen={!!editingDoc}
+                    onClose={() => setEditingDoc(null)}
+                    onSave={(doc) => { onUpdateDocument(doc); setEditingDoc(null); addCategory(doc.category); }}
+                    tripParticipants={tripParticipants}
+                    categories={categories}
+                    onAddCategory={addCategory}
+                />
+            )}
         </div>
     );
 };
@@ -1772,7 +1923,7 @@ const Sidebar = ({
 const Dashboard = ({
     user, trips, refreshTrips, onLogout, onCreateTrip,
     financialRecords, onAddFinancialRecord,
-    documents, onAddDocument,
+    documents, onAddDocument, onUpdateDocument, onRemoveDocument,
     personalDataConfigs, personalDataRecords, onUpdatePersonalData, onTogglePersonalDataLock, onUpsertPersonalDataConfig, onRemovePersonalDataConfig,
     itineraryItems, onAddItineraryItem, onRemoveItineraryItem,
     theme, onThemeChange
@@ -1786,6 +1937,8 @@ const Dashboard = ({
     onAddFinancialRecord: (record: Omit<FinancialRecord, 'id'>) => void,
     documents: Document[],
     onAddDocument: (doc: Omit<Document, 'id'>) => void,
+    onUpdateDocument: (doc: Document) => void,
+    onRemoveDocument: (id: string) => void,
     personalDataConfigs: PersonalDataFieldConfig[],
     personalDataRecords: PersonalDataRecord[],
     onUpdatePersonalData: (record: Omit<PersonalDataRecord, 'isLocked'>) => void,
@@ -1892,7 +2045,7 @@ const Dashboard = ({
             case 'summary': return <TripSummary trip={selectedTrip} />;
             case 'financials': return <TripFinancials trip={selectedTrip} user={user} records={tripFinancialRecords} users={allUsers} onAddRecord={onAddFinancialRecord} />;
             case 'itinerary': return <TripItinerary trip={selectedTrip} user={user} items={tripItineraryItems} onAddItem={onAddItineraryItem} onRemoveItem={onRemoveItineraryItem} />;
-            case 'documents': return <TripDocuments trip={selectedTrip} user={user} documents={tripDocuments} onAddDocument={onAddDocument} users={allUsers} />;
+            case 'documents': return <TripDocuments trip={selectedTrip} user={user} documents={tripDocuments} onAddDocument={onAddDocument} onUpdateDocument={onUpdateDocument} onRemoveDocument={onRemoveDocument} users={allUsers} />;
             case 'personalData': return <TripPersonalData trip={selectedTrip} user={user} configs={tripPersonalDataConfigs} records={tripPersonalDataRecords} onUpdateRecord={onUpdatePersonalData} onToggleLock={onTogglePersonalDataLock} onUpsertConfig={onUpsertPersonalDataConfig} onRemoveConfig={onRemovePersonalDataConfig} users={allUsers} />;
             case 'users':
               if (user.role !== 'admin' && !selectedTrip.organizerIds.includes(String(user.id))) {

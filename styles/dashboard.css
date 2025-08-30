@@ -352,6 +352,21 @@
     font-size: 0.9rem;
 }
 
+.documents-table td.actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.category-select {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.category-select select {
+    flex: 1;
+}
+
 /* --- Personal Data Page --- */
 .personal-data-form {
     max-width: 700px;
